@@ -15,15 +15,40 @@ class ChatInterface {
     }
 
     setupEventListeners() {
-        this.recordButton.addEventListener('mousedown', () => this.startRecording());
-        this.recordButton.addEventListener('mouseup', () => this.stopRecording());
+        // Record button events for both mouse and touch
+        ['mousedown', 'touchstart'].forEach(event => {
+            this.recordButton.addEventListener(event, (e) => {
+                e.preventDefault();
+                this.startRecording();
+            });
+        });
+
+        ['mouseup', 'touchend'].forEach(event => {
+            this.recordButton.addEventListener(event, (e) => {
+                e.preventDefault();
+                this.stopRecording();
+            });
+        });
+
+        // Other button events
         this.resetButton.addEventListener('click', () => this.resetSession());
         this.backButton.addEventListener('click', () => this.showCategorySelection());
+        
+        // End session button
+        document.getElementById('endSessionButton').addEventListener('click', () => {
+            this.resetSession();
+            this.showCategorySelection();
+        });
 
-        // Add click handlers for category cards
+        // Add click and touch handlers for category cards
         const categoryCards = document.querySelectorAll('.category-card');
         categoryCards.forEach(card => {
-            card.addEventListener('click', () => this.selectCategory(card));
+            ['click', 'touchend'].forEach(event => {
+                card.addEventListener(event, (e) => {
+                    e.preventDefault();
+                    this.selectCategory(card);
+                });
+            });
         });
     }
 
