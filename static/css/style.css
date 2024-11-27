@@ -96,16 +96,30 @@
     color: var(--bs-light);
 }
 
-.record-button {
-    padding: 10px 20px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
+.btn-icon {
+    width: 45px;
+    height: 45px;
+    padding: 0;
+    border-radius: 50%;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    transition: all 0.3s ease;
 }
 
-.record-button:hover {
+.record-button {
+    width: 60px;
+    height: 60px;
+    padding: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.record-button:hover,
+.btn-icon:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
@@ -116,8 +130,10 @@
     box-shadow: 0 0 15px rgba(var(--bs-danger-rgb), 0.5);
 }
 
-.btn-outline-secondary:hover,
-.btn-outline-danger:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+.btn i {
+    font-size: 1.2rem;
+}
+
+.record-button i {
+    font-size: 1.5rem;
 }
