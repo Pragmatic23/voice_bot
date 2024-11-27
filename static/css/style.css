@@ -1,4 +1,36 @@
 [data-bs-theme=dark] {
+/* Category Card Styles */
+.category-card {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(var(--bs-primary-rgb), 0.15);
+}
+
+.category-card:active {
+    transform: translateY(0);
+}
+
+.category-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.category-card:hover::before {
+    opacity: 1;
+}
     --chat-bg: var(--bs-gray-800);
     --user-message-bg: var(--bs-primary);
     --bot-message-bg: var(--bs-secondary);
