@@ -38,20 +38,25 @@
     z-index: 1;
 }
 
-.personality {
-    background-image: url('/static/images/personality.jpg');
-}
-
-.soft-skills {
-    background-image: url('/static/images/team-meeting.jpg');
-}
-
-.communication {
-    background-image: url('/static/images/laptop.jpg');
-}
-
+.personality,
+.soft-skills,
+.communication,
 .interview {
-    background-image: url('/static/images/group-meeting.jpg');
+    background-image: url('/static/images/category-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.category-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1;
 }
 
 /* Chat Interface */
