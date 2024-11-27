@@ -39,51 +39,39 @@
 }
 
 .personality {
-    background-image: url('https://storage.googleapis.com/replit/images/1701110053933_b9e9c3d9f17d63e0a28f5e2c5c8c8c62.png');
+    background-color: rgba(var(--bs-info-rgb), 0.2);
 }
 
 .soft-skills {
-    background-image: url('https://storage.googleapis.com/replit/images/1701110053934_7b8e8d1e5b7f4c6b9d2c4c5e3b3e3e3e.png');
+    background-color: rgba(var(--bs-success-rgb), 0.2);
 }
 
 .communication {
-    background-image: url('https://storage.googleapis.com/replit/images/1701110053935_1b2b3c4d5e6f7g8h9i0j1k2l3m4n5o6.png');
+    background-color: rgba(var(--bs-purple-rgb), 0.2);
 }
 
 .interview {
-    background-image: url('https://storage.googleapis.com/replit/images/1701110053936_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5.png');
-}
-
-.category-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1;
+    background-color: rgba(var(--bs-warning-rgb), 0.2);
 }
 
 /* Chat Interface */
 .chat-container {
     height: 80vh;
-    background-color: var(--bs-gray-900);
+    background-color: var(--chat-bg);
     border-radius: 10px;
     overflow: hidden;
 }
 
 .chat-window {
-    height: calc(100% - 120px);
+    height: calc(100% - 150px);
     overflow-y: auto;
     padding: 20px;
-    background-color: var(--bs-gray-800);
 }
 
 .controls {
-    height: 120px;
+    height: 150px;
     background-color: var(--bs-gray-900);
-    padding: 30px 20px;
+    padding: 20px;
 }
 
 .message {
