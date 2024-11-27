@@ -2,36 +2,61 @@ import AudioHandler from './audio.js';
 
 class ChatInterface {
     constructor() {
-        this.audioHandler = AudioHandler;
-        this.recordButton = document.getElementById('recordButton');
-        this.chatWindow = document.getElementById('chatWindow');
-        this.categoryGrid = document.getElementById('categoryGrid');
-        this.chatInterface = document.getElementById('chatInterface');
-        this.backButton = document.getElementById('backButton');
-        this.selectedCategoryText = document.getElementById('selectedCategory');
-        this.currentCategory = '';
-        this.messageHistory = [];
-        this.chatSummary = document.getElementById('chatSummary');
-        this.summaryContent = document.getElementById('summaryContent');
-        
+        this.initializeElements();
         this.setupEventListeners();
     }
 
-    setupEventListeners() {
-        // Record button events
-        this.recordButton.addEventListener('mousedown', () => {
-            this.startRecording();
-        });
-        
-        this.recordButton.addEventListener('mouseup', () => {
-            this.stopRecording();
-        });
-        
-        this.recordButton.addEventListener('mouseleave', () => {
-            if (this.audioHandler.isRecording) {
-                this.stopRecording();
+    initializeElements() {
+        // Initialize all DOM elements with null checks
+        this.elements = {
+            recordButton: document.getElementById('recordButton'),
+            chatWindow: document.getElementById('chatWindow'),
+            categoryGrid: document.getElementById('categoryGrid'),
+            chatInterface: document.getElementById('chatInterface'),
+            backButton: document.getElementById('backButton'),
+            selectedCategoryText: document.getElementById('selectedCategory'),
+            chatSummary: document.getElementById('chatSummary'),
+            summaryContent: document.getElementById('summaryContent'),
+            resetButton: document.getElementById('resetButton'),
+            endSessionButton: document.getElementById('endSessionButton'),
+            historyButton: document.getElementById('historyButton'),
+            closeSummaryButton: document.getElementById('closeSummaryButton')
+        };
+
+        // Verify all required elements exist
+        Object.entries(this.elements).forEach(([key, element]) => {
+            if (!element) {
+                console.error(`Required element not found: ${key}`);
             }
         });
+
+        this.audioHandler = AudioHandler;
+        this.currentCategory = '';
+        this.messageHistory = [];
+        this.isProcessing = false;
+    }
+
+    setupEventListeners() {
+        // Record button events with loading states
+        if (this.elements.recordButton) {
+            this.elements.recordButton.addEventListener('mousedown', async () => {
+                if (!this.isProcessing) {
+                    await this.startRecording();
+                }
+            });
+            
+            this.elements.recordButton.addEventListener('mouseup', async () => {
+                if (this.audioHandler.isRecording) {
+                    await this.stopRecording();
+                }
+            });
+            
+            this.elements.recordButton.addEventListener('mouseleave', async () => {
+                if (this.audioHandler.isRecording) {
+                    await this.stopRecording();
+                }
+            });
+        }
 
         // Category card click events
         const categoryCards = document.querySelectorAll('.category-card');
@@ -42,83 +67,67 @@ class ChatInterface {
             });
         });
 
-        // Back button
-        this.backButton.addEventListener('click', () => {
-            this.showCategorySelection();
-        });
-
-        // Reset button
-        document.getElementById('resetButton').addEventListener('click', () => {
-            this.resetSession();
-        });
-
-        // End session button
-        document.getElementById('endSessionButton').addEventListener('click', () => {
-            this.resetSession();
-            this.showCategorySelection();
-        });
-
-        // History button
-        document.getElementById('historyButton').addEventListener('click', () => {
-            this.showChatSummary();
-        });
-
-        // Close summary button
-        document.getElementById('closeSummaryButton').addEventListener('click', () => {
-            this.hideChatSummary();
-        });
+        // Setup other button listeners with null checks
+        this.setupButtonListeners();
     }
 
-    categorySelected(category) {
-        console.log('Category selected:', category);
-        this.currentCategory = category;
-        
-        // Update selected category display
-        const categoryTitles = {
-            'personality': 'Personality Development',
-            'soft_skills': 'Soft Skills Improvement',
-            'communication': 'Communication Techniques',
-            'interview': 'Interview Preparation'
-        };
-        
-        this.selectedCategoryText.textContent = categoryTitles[category] || category;
-        
-        // Show chat interface
-        this.categoryGrid.classList.add('d-none');
-        this.chatInterface.classList.remove('d-none');
-    }
+    setupButtonListeners() {
+        const { backButton, resetButton, endSessionButton, historyButton, closeSummaryButton } = this.elements;
 
-    showCategorySelection() {
-        this.categoryGrid.classList.remove('d-none');
-        this.chatInterface.classList.add('d-none');
-        this.currentCategory = '';
+        if (backButton) {
+            backButton.addEventListener('click', () => this.showCategorySelection());
+        }
+
+        if (resetButton) {
+            resetButton.addEventListener('click', () => this.resetSession());
+        }
+
+        if (endSessionButton) {
+            endSessionButton.addEventListener('click', () => {
+                this.resetSession();
+                this.showCategorySelection();
+            });
+        }
+
+        if (historyButton) {
+            historyButton.addEventListener('click', () => this.showChatSummary());
+        }
+
+        if (closeSummaryButton) {
+            closeSummaryButton.addEventListener('click', () => this.hideChatSummary());
+        }
     }
 
     async startRecording() {
-        console.log('Starting audio recording...');
         try {
+            this.setLoadingState(true, 'recording');
             await this.audioHandler.startRecording();
-            this.recordButton.classList.add('recording');
-            console.log('Recording started successfully');
+            this.elements.recordButton.classList.add('recording');
         } catch (error) {
-            console.error('Start recording error:', error);
-            this.showError('Failed to start recording. Please check microphone permissions.');
+            this.showError(error.message);
         }
     }
 
     async stopRecording() {
         try {
             const audioBlob = await this.audioHandler.stopRecording();
-            this.recordButton.classList.remove('recording');
+            this.elements.recordButton.classList.remove('recording');
             await this.processAudio(audioBlob);
         } catch (error) {
-            console.error('Stop recording error:', error);
-            this.showError('Failed to process recording. Please try again.');
+            this.showError(error.message);
+        } finally {
+            this.setLoadingState(false, 'recording');
         }
     }
 
     async processAudio(audioBlob) {
-        console.log('Processing audio...');
+        if (!audioBlob) {
+            this.showError('No audio data available to process');
+            return;
+        }
+
+        this.setLoadingState(true, 'processing');
+        
         try {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.wav');
@@ -135,20 +144,75 @@ class ChatInterface {
                 throw new Error(data.error || 'Failed to process audio');
             }
 
-            console.log('Audio processed successfully, playing response');
             this.updateChatWindow(data.text, data.response);
-            this.audioHandler.playAudio(data.audio);
+            await this.audioHandler.playAudio(data.audio);
             
         } catch (error) {
-            console.error('Error processing audio:', error);
-            this.showError('Failed to process audio. Please try again.');
+            this.showError(error.message);
+        } finally {
+            this.setLoadingState(false, 'processing');
         }
     }
 
-    updateChatWindow(userText, botResponse) {
-        console.log('Updating chat window with new messages');
+    setLoadingState(isLoading, state = 'processing') {
+        this.isProcessing = isLoading;
         
-        // Store messages in history
+        if (this.elements.recordButton) {
+            this.elements.recordButton.disabled = isLoading;
+            
+            // Update button text/icon based on state
+            const icon = this.elements.recordButton.querySelector('i');
+            if (icon) {
+                if (isLoading) {
+                    icon.className = state === 'recording' ? 
+                        'fas fa-microphone-slash' : 'fas fa-spinner fa-spin';
+                } else {
+                    icon.className = 'fas fa-microphone';
+                }
+            }
+        }
+
+        // Add visual feedback for processing state
+        if (this.elements.chatInterface) {
+            this.elements.chatInterface.classList.toggle('processing', isLoading);
+        }
+    }
+
+    categorySelected(category) {
+        if (!category) return;
+        
+        this.currentCategory = category;
+        
+        const categoryTitles = {
+            'personality': 'Personality Development',
+            'soft_skills': 'Soft Skills Improvement',
+            'communication': 'Communication Techniques',
+            'interview': 'Interview Preparation'
+        };
+        
+        if (this.elements.selectedCategoryText) {
+            this.elements.selectedCategoryText.textContent = categoryTitles[category] || category;
+        }
+        
+        if (this.elements.categoryGrid && this.elements.chatInterface) {
+            this.elements.categoryGrid.classList.add('d-none');
+            this.elements.chatInterface.classList.remove('d-none');
+        }
+    }
+
+    showCategorySelection() {
+        if (this.elements.categoryGrid && this.elements.chatInterface) {
+            this.elements.categoryGrid.classList.remove('d-none');
+            this.elements.chatInterface.classList.add('d-none');
+        }
+        this.currentCategory = '';
+    }
+
+    updateChatWindow(userText, botResponse) {
+        if (!this.elements.chatWindow) return;
+
+        const timestamp = new Date().toLocaleString();
+        
         this.messageHistory.push({
             type: 'user',
             text: userText,
@@ -159,31 +223,37 @@ class ChatInterface {
             text: botResponse,
             timestamp: new Date()
         });
+
+        const messageHtml = this.createMessageHTML(userText, botResponse, timestamp);
+        this.elements.chatWindow.insertAdjacentHTML('beforeend', messageHtml);
+        this.elements.chatWindow.scrollTop = this.elements.chatWindow.scrollHeight;
         
-        const userMessage = `
+        this.setupMessageToggles();
+    }
+
+    createMessageHTML(userText, botResponse, timestamp) {
+        return `
             <div class="message user-message">
                 <div class="message-content">
+                    <span class="timestamp">${this.escapeHtml(timestamp)}</span>
                     ${this.escapeHtml(userText)}
                     <i class="fas fa-file-alt message-toggle" title="Show/Hide Transcript"></i>
                 </div>
                 <div class="message-transcript">${this.escapeHtml(userText)}</div>
             </div>
-        `;
-        const botMessage = `
             <div class="message bot-message">
                 <div class="message-content">
+                    <span class="timestamp">${this.escapeHtml(timestamp)}</span>
                     ${this.escapeHtml(botResponse)}
                     <i class="fas fa-file-alt message-toggle" title="Show/Hide Transcript"></i>
                 </div>
                 <div class="message-transcript">${this.escapeHtml(botResponse)}</div>
             </div>
         `;
-        
-        this.chatWindow.innerHTML += userMessage + botMessage;
-        this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
-        
-        // Add click handlers for transcript toggles
-        const toggles = this.chatWindow.querySelectorAll('.message-toggle');
+    }
+
+    setupMessageToggles() {
+        const toggles = this.elements.chatWindow.querySelectorAll('.message-toggle');
         toggles.forEach(toggle => {
             toggle.addEventListener('click', (e) => {
                 const transcript = e.target.closest('.message-content').nextElementSibling;
@@ -193,8 +263,9 @@ class ChatInterface {
     }
 
     showChatSummary() {
-        console.log('Showing chat summary');
-        this.summaryContent.innerHTML = '';
+        if (!this.elements.summaryContent || !this.elements.chatSummary) return;
+
+        this.elements.summaryContent.innerHTML = '';
         
         this.messageHistory.forEach(message => {
             const timestamp = message.timestamp.toLocaleString();
@@ -204,15 +275,16 @@ class ChatInterface {
                     <div class="content">${this.escapeHtml(message.text)}</div>
                 </div>
             `;
-            this.summaryContent.innerHTML += messageHtml;
+            this.elements.summaryContent.innerHTML += messageHtml;
         });
         
-        this.chatSummary.classList.remove('d-none');
+        this.elements.chatSummary.classList.remove('d-none');
     }
 
     hideChatSummary() {
-        console.log('Hiding chat summary');
-        this.chatSummary.classList.add('d-none');
+        if (this.elements.chatSummary) {
+            this.elements.chatSummary.classList.add('d-none');
+        }
     }
 
     async resetSession() {
@@ -224,31 +296,38 @@ class ChatInterface {
                 throw new Error(data.error || 'Failed to reset session');
             }
             
-            this.chatWindow.innerHTML = '';
+            if (this.elements.chatWindow) {
+                this.elements.chatWindow.innerHTML = '';
+            }
             this.messageHistory = [];
         } catch (error) {
-            console.error('Error resetting session:', error);
-            this.showError('Failed to reset chat session. Please try again.');
+            this.showError(error.message);
         }
     }
 
     showError(message) {
+        if (!this.elements.chatWindow) return;
+
         const errorDiv = document.createElement('div');
         errorDiv.className = 'alert alert-danger alert-dismissible fade show';
         errorDiv.innerHTML = `
             ${this.escapeHtml(message)}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         `;
-        this.chatWindow.appendChild(errorDiv);
+        this.elements.chatWindow.appendChild(errorDiv);
         
         // Auto-dismiss after 5 seconds
         setTimeout(() => {
-            errorDiv.remove();
+            if (errorDiv.parentNode === this.elements.chatWindow) {
+                errorDiv.remove();
+            }
         }, 5000);
     }
 
     escapeHtml(unsafe) {
+        if (!unsafe) return '';
         return unsafe
+            .toString()
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
@@ -257,6 +336,7 @@ class ChatInterface {
     }
 }
 
+// Initialize the chat interface when the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     new ChatInterface();
 });
