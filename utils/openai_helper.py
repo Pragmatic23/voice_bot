@@ -16,7 +16,8 @@ def process_audio(audio_file, api_key):
         with open(temp_audio.name, 'rb') as audio:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
-                file=audio
+                file=audio,
+                language="en"  # Explicitly set language to English
             )
             
     return transcript.text
@@ -26,10 +27,10 @@ def generate_response(text, category, history, api_key):
     
     # Create system message based on category
     system_messages = {
-        'soft_skills': "You are an expert in soft skills and communication coaching.",
-        'interview': "You are an experienced interview coach and career counselor.",
-        'personality': "You are a personality development coach focusing on personal growth.",
-        'general': "You are a helpful life coach providing general advice and guidance."
+        'soft_skills': "You are an expert in soft skills and communication coaching. Always respond in English.",
+        'interview': "You are an experienced interview coach and career counselor. Always respond in English.",
+        'personality': "You are a personality development coach focusing on personal growth. Always respond in English.",
+        'general': "You are a helpful life coach providing general advice and guidance. Always respond in English."
     }
     
     messages = [
