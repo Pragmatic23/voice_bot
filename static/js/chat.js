@@ -67,21 +67,41 @@ class ChatInterface {
 
     async startRecording() {
         try {
+            // Check if browser supports audio recording
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('Your browser does not support audio recording');
+            }
+
             this.recordButton.classList.add('recording');
             await audioHandler.startRecording();
         } catch (error) {
-            this.showError('Error accessing microphone. Please ensure microphone permissions are granted.');
+            const errorMessage = error.name === 'NotAllowedError' 
+                ? 'Microphone access denied. Please grant microphone permissions to use this feature.'
+                : error.message || 'Error accessing microphone';
+            
+            this.showError(errorMessage);
             this.recordButton.classList.remove('recording');
+            console.error('Recording error:', error);
         }
     }
 
     async stopRecording() {
         try {
+            if (!audioHandler.isRecording) {
+                throw new Error('No active recording session');
+            }
+
             this.recordButton.classList.remove('recording');
             const audioBlob = await audioHandler.stopRecording();
+            
+            if (!audioBlob || audioBlob.size === 0) {
+                throw new Error('No audio data recorded');
+            }
+
             await this.processAudio(audioBlob);
         } catch (error) {
-            this.showError('Error stopping recording. Please try again.');
+            this.showError(error.message || 'Error stopping recording');
+            console.error('Stop recording error:', error);
         }
     }
 
@@ -91,11 +111,19 @@ class ChatInterface {
             return;
         }
 
+        // Validate audio size
+        const maxSize = 25 * 1024 * 1024; // 25MB
+        if (audioBlob.size > maxSize) {
+            this.showError('Audio recording is too long. Please keep it under 1 minute.');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('audio', audioBlob);
         formData.append('category', this.currentCategory);
 
         try {
+            this.showProcessingMessage();
             const response = await fetch('/process-audio', {
                 method: 'POST',
                 body: formData
@@ -111,11 +139,59 @@ class ChatInterface {
                 throw new Error('Invalid response format from server');
             }
 
+            this.removeProcessingMessage();
             this.updateChatWindow(data.text, data.response);
-            audioHandler.playAudio(data.audio);
+            await this.playAudioResponse(data.audio);
         } catch (error) {
+            this.removeProcessingMessage();
             console.error('Error processing audio:', error);
-            this.showError(error.message || 'Error processing audio. Please try again.');
+            this.showError(this.formatErrorMessage(error.message));
+        }
+    }
+
+    formatErrorMessage(message) {
+        const errorMap = {
+            'No audio file provided': 'Please record some audio before submitting.',
+            'Audio file size exceeds': 'The recording is too long. Please keep it shorter.',
+            'Unsupported audio format': 'This audio format is not supported. Please try again.',
+            'Failed to transcribe': 'Could not understand the audio. Please speak clearly and try again.',
+            'Failed to generate response': 'Could not generate a response. Please try again.',
+            'Failed to convert text to speech': 'Could not generate audio response. Please try again.'
+        };
+
+        for (const [key, value] of Object.entries(errorMap)) {
+            if (message.includes(key)) return value;
+        }
+        return 'An error occurred. Please try again.';
+    }
+
+    showProcessingMessage() {
+        const processingDiv = document.createElement('div');
+        processingDiv.id = 'processingMessage';
+        processingDiv.className = 'alert alert-info';
+        processingDiv.innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                <span>Processing your message...</span>
+            </div>
+        `;
+        this.chatWindow.appendChild(processingDiv);
+        this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
+    }
+
+    removeProcessingMessage() {
+        const processingDiv = document.getElementById('processingMessage');
+        if (processingDiv) {
+            processingDiv.remove();
+        }
+    }
+
+    async playAudioResponse(audioData) {
+        try {
+            await audioHandler.playAudio(audioData);
+        } catch (error) {
+            console.error('Error playing audio response:', error);
+            this.showError('Could not play the audio response');
         }
     }
 
@@ -159,10 +235,13 @@ class ChatInterface {
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         `;
         this.chatWindow.appendChild(errorDiv);
+        this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
         
         // Auto-dismiss after 5 seconds
         setTimeout(() => {
-            errorDiv.remove();
+            if (errorDiv.parentNode) {
+                errorDiv.remove();
+            }
         }, 5000);
     }
 
