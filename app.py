@@ -17,7 +17,7 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 db.init_app(app)
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "your-api-key")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 @app.route('/')
 def index():
@@ -25,39 +25,57 @@ def index():
 
 @app.route('/process-audio', methods=['POST'])
 def process_audio_route():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No audio file provided'}), 400
-    
-    audio_file = request.files['audio']
-    category = request.form.get('category', 'general')
-    
-    # Process audio using Whisper API
-    text = process_audio(audio_file, OPENAI_API_KEY)
-    
-    # Get conversation history from session
-    history = session.get('chat_history', [])
-    
-    # Generate response using GPT
-    response = generate_response(text, category, history, OPENAI_API_KEY)
-    
-    # Convert response to speech
-    audio_response = text_to_speech(response)
-    
-    # Update conversation history
-    history.append({'role': 'user', 'content': text})
-    history.append({'role': 'assistant', 'content': response})
-    session['chat_history'] = history[-10:]  # Keep last 10 messages
-    
-    return jsonify({
-        'text': text,
-        'response': response,
-        'audio': audio_response
-    })
+    try:
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file provided'}), 400
+        
+        audio_file = request.files['audio']
+        if not audio_file:
+            return jsonify({'error': 'Empty audio file'}), 400
+            
+        category = request.form.get('category', 'general')
+        
+        # Process audio using Whisper API
+        try:
+            text = process_audio(audio_file, OPENAI_API_KEY)
+        except Exception as e:
+            return jsonify({'error': f'Error processing audio: {str(e)}'}), 500
+        
+        # Get conversation history from session
+        history = session.get('chat_history', [])
+        
+        try:
+            # Generate response using GPT
+            response = generate_response(text, category, history, OPENAI_API_KEY)
+        except Exception as e:
+            return jsonify({'error': f'Error generating response: {str(e)}'}), 500
+        
+        try:
+            # Convert response to speech
+            audio_response = text_to_speech(response)
+        except Exception as e:
+            return jsonify({'error': f'Error converting text to speech: {str(e)}'}), 500
+        
+        # Update conversation history
+        history.append({'role': 'user', 'content': text})
+        history.append({'role': 'assistant', 'content': response})
+        session['chat_history'] = history[-10:]  # Keep last 10 messages
+        
+        return jsonify({
+            'text': text,
+            'response': response,
+            'audio': audio_response
+        })
+    except Exception as e:
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
 
 @app.route('/reset-session', methods=['POST'])
 def reset_session():
-    session.clear()
-    return jsonify({'status': 'success'})
+    try:
+        session.clear()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'error': f'Error resetting session: {str(e)}'}), 500
 
 with app.app_context():
     import models
