@@ -1,8 +1,15 @@
 import os
+import time
+import logging
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from utils.openai_helper import process_audio, generate_response, text_to_speech
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Base(DeclarativeBase):
     pass
@@ -25,15 +32,21 @@ def index():
 
 @app.route('/process-audio', methods=['POST'])
 def process_audio_route():
+    start_time = time.time()
+    logger.info(f"New audio processing request received at {datetime.now()}")
+    
     try:
         if 'audio' not in request.files:
+            logger.error("No audio file in request")
             return jsonify({'error': 'No audio file provided'}), 400
         
         audio_file = request.files['audio']
         if not audio_file:
+            logger.error("Empty audio file received")
             return jsonify({'error': 'Empty audio file'}), 400
             
         category = request.form.get('category', 'general')
+        logger.info(f"Processing audio for category: {category}")
         
         # Process audio using Whisper API
         try:

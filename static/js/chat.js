@@ -164,12 +164,24 @@ class ChatInterface {
             const icon = this.elements.recordButton.querySelector('i');
             if (icon) {
                 if (isLoading) {
-                    icon.className = state === 'recording' ? 
-                        'fas fa-microphone-slash' : 'fas fa-spinner fa-spin';
+                    // Add pulsing effect for recording state
+                    if (state === 'recording') {
+                        icon.className = 'fas fa-microphone-slash fa-beat';
+                        this.elements.recordButton.classList.add('btn-danger');
+                    } else {
+                        // Add spinning loader for processing state
+                        icon.className = 'fas fa-spinner fa-spin-pulse fa-spin';
+                        this.elements.recordButton.classList.add('btn-warning');
+                    }
                 } else {
                     icon.className = 'fas fa-microphone';
+                    this.elements.recordButton.classList.remove('btn-danger', 'btn-warning');
                 }
             }
+            
+            // Add loading indicator text
+            const loadingText = state === 'recording' ? 'Recording...' : 'Processing...';
+            this.updateLoadingStatus(isLoading ? loadingText : '');
         }
 
         // Add visual feedback for processing state
@@ -322,6 +334,16 @@ class ChatInterface {
                 errorDiv.remove();
             }
         }, 5000);
+    }
+    updateLoadingStatus(message) {
+        let statusElement = document.getElementById('processingStatus');
+        if (!statusElement) {
+            statusElement = document.createElement('div');
+            statusElement.id = 'processingStatus';
+            statusElement.className = 'text-center mt-2 text-muted';
+            this.elements.recordButton.parentNode.appendChild(statusElement);
+        }
+        statusElement.textContent = message;
     }
 
     escapeHtml(unsafe) {

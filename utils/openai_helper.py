@@ -7,6 +7,17 @@ import io
 import time
 from functools import wraps
 import os
+import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def log_timing(func_name, start_time):
+    """Log execution time of a function"""
+    duration = time.time() - start_time
+    logger.info(f"{func_name} completed in {duration:.2f} seconds")
 
 def retry_on_exception(retries=3, delay=1):
     def decorator(func):
@@ -41,27 +52,36 @@ def validate_audio_format(audio_file):
 @retry_on_exception(retries=3, delay=1)
 async def process_audio(audio_file, api_key):
     """Process audio file using Whisper API with improved error handling and retries."""
-    print("Starting audio processing...")
+    start_time = time.time()
+    logger.info("Starting audio processing...")
     
     try:
         # Validate audio format
+        logger.info("Validating audio format...")
         validate_audio_format(audio_file)
         
+        logger.info("Initializing OpenAI client...")
         client = OpenAI(api_key=api_key)
         
         # Save the audio file temporarily
-        print("Saving temporary audio file...")
+        logger.info("Creating temporary audio file...")
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
+            logger.info("Saving audio data...")
             audio_file.save(temp_audio.name)
             
             # Transcribe using Whisper API
             try:
+                logger.info("Sending audio to Whisper API for transcription...")
+                transcription_start = time.time()
                 with open(temp_audio.name, 'rb') as audio:
                     transcript = client.audio.transcriptions.create(
                         model="whisper-1",
                         file=audio,
                         language="en"
                     )
+                logger.info(f"Transcription completed in {time.time() - transcription_start:.2f} seconds")
+                logger.info(f"Transcribed text: {transcript.text[:100]}...")
+                log_timing("process_audio", start_time)
                 return transcript.text
             except Exception as e:
                 raise Exception(f"Transcription failed: {str(e)}")

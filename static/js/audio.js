@@ -9,14 +9,19 @@ class AudioHandler {
     }
 
     async startRecording() {
+        console.log('Initializing audio recording...');
         try {
             // Stop any existing streams
+            console.log('Cleaning up previous recording session...');
             await this.cleanup();
             
             // Request microphone access
+            console.log('Requesting microphone access...');
             this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('Microphone access granted');
             
             // Create and configure MediaRecorder
+            console.log('Configuring MediaRecorder...');
             this.mediaRecorder = new MediaRecorder(this.stream, {
                 mimeType: 'audio/webm;codecs=opus'
             });
