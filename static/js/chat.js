@@ -67,9 +67,12 @@ class ChatInterface {
 
     async startRecording() {
         try {
+            console.log('Starting audio recording...');
             this.recordButton.classList.add('recording');
             await audioHandler.startRecording();
+            console.log('Recording started successfully');
         } catch (error) {
+            console.error('Error starting recording:', error);
             this.showError('Error accessing microphone. Please ensure microphone permissions are granted.');
             this.recordButton.classList.remove('recording');
         }
@@ -87,10 +90,14 @@ class ChatInterface {
 
     async processAudio(audioBlob) {
         if (!audioBlob) {
+            console.warn('No audio recorded');
             this.showError('No audio recorded. Please try again.');
             return;
         }
 
+        console.log('Processing audio...');
+        this.recordButton.classList.add('processing');
+        
         const formData = new FormData();
         formData.append('audio', audioBlob);
         formData.append('category', this.currentCategory);
@@ -112,27 +119,49 @@ class ChatInterface {
             }
 
             this.updateChatWindow(data.text, data.response);
+            console.log('Audio processed successfully, playing response');
             audioHandler.playAudio(data.audio);
         } catch (error) {
             console.error('Error processing audio:', error);
             this.showError(error.message || 'Error processing audio. Please try again.');
+        } finally {
+            this.recordButton.classList.remove('processing');
         }
     }
 
     updateChatWindow(userText, botResponse) {
+        console.log('Updating chat window with new messages');
+        
         const userMessage = `
             <div class="message user-message">
-                <div class="message-content">${this.escapeHtml(userText)}</div>
+                <div class="message-content">
+                    ${this.escapeHtml(userText)}
+                    <i class="fas fa-file-alt message-toggle" title="Show/Hide Transcript"></i>
+                </div>
+                <div class="message-transcript">${this.escapeHtml(userText)}</div>
             </div>
         `;
         const botMessage = `
             <div class="message bot-message">
-                <div class="message-content">${this.escapeHtml(botResponse)}</div>
+                <div class="message-content">
+                    ${this.escapeHtml(botResponse)}
+                    <i class="fas fa-file-alt message-toggle" title="Show/Hide Transcript"></i>
+                </div>
+                <div class="message-transcript">${this.escapeHtml(botResponse)}</div>
             </div>
         `;
         
         this.chatWindow.innerHTML += userMessage + botMessage;
         this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
+        
+        // Add click handlers for transcript toggles
+        const toggles = this.chatWindow.querySelectorAll('.message-toggle');
+        toggles.forEach(toggle => {
+            toggle.addEventListener('click', (e) => {
+                const transcript = e.target.closest('.message-content').nextElementSibling;
+                transcript.classList.toggle('show');
+            });
+        });
     }
 
     async resetSession() {

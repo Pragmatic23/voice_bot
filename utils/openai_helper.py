@@ -6,9 +6,11 @@ from gtts import gTTS
 import io
 
 def process_audio(audio_file, api_key):
+    print("Starting audio processing...")
     client = OpenAI(api_key=api_key)
     
     # Save the audio file temporarily
+    print("Saving temporary audio file...")
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
         audio_file.save(temp_audio.name)
         
