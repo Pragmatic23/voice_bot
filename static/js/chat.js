@@ -10,6 +10,9 @@ class ChatInterface {
         this.backButton = document.getElementById('backButton');
         this.selectedCategoryText = document.getElementById('selectedCategory');
         this.currentCategory = '';
+        this.messageHistory = [];
+        this.chatSummary = document.getElementById('chatSummary');
+        this.summaryContent = document.getElementById('summaryContent');
         
         this.setupEventListeners();
     }
@@ -38,6 +41,16 @@ class ChatInterface {
         document.getElementById('endSessionButton').addEventListener('click', () => {
             this.resetSession();
             this.showCategorySelection();
+        });
+
+        // History button
+        document.getElementById('historyButton').addEventListener('click', () => {
+            this.showChatSummary();
+        });
+
+        // Close summary button
+        document.getElementById('closeSummaryButton').addEventListener('click', () => {
+            this.hideChatSummary();
         });
 
         // Add click and touch handlers for category cards
@@ -132,6 +145,18 @@ class ChatInterface {
     updateChatWindow(userText, botResponse) {
         console.log('Updating chat window with new messages');
         
+        // Store messages in history
+        this.messageHistory.push({
+            type: 'user',
+            text: userText,
+            timestamp: new Date()
+        });
+        this.messageHistory.push({
+            type: 'bot',
+            text: botResponse,
+            timestamp: new Date()
+        });
+        
         const userMessage = `
             <div class="message user-message">
                 <div class="message-content">
@@ -139,6 +164,29 @@ class ChatInterface {
                     <i class="fas fa-file-alt message-toggle" title="Show/Hide Transcript"></i>
                 </div>
                 <div class="message-transcript">${this.escapeHtml(userText)}</div>
+    showChatSummary() {
+        console.log('Showing chat summary');
+        this.summaryContent.innerHTML = '';
+        
+        this.messageHistory.forEach(message => {
+            const timestamp = message.timestamp.toLocaleString();
+            const messageHtml = `
+                <div class="summary-message ${message.type}-message">
+                    <div class="timestamp">${this.escapeHtml(timestamp)}</div>
+                    <div class="content">${this.escapeHtml(message.text)}</div>
+                </div>
+            `;
+            this.summaryContent.innerHTML += messageHtml;
+        });
+        
+        this.chatSummary.classList.remove('d-none');
+    }
+
+    hideChatSummary() {
+        console.log('Hiding chat summary');
+        this.chatSummary.classList.add('d-none');
+    }
+
             </div>
         `;
         const botMessage = `
@@ -174,6 +222,7 @@ class ChatInterface {
             }
             
             this.chatWindow.innerHTML = '';
+            this.messageHistory = [];
         } catch (error) {
             console.error('Error resetting session:', error);
             this.showError('Failed to reset chat session. Please try again.');

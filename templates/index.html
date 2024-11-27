@@ -65,6 +65,9 @@
                         </button>
                     </div>
                     <div class="col-md-8 text-end">
+                        <button id="historyButton" class="btn btn-outline-info me-2 btn-icon" title="Chat History">
+                            <i class="fas fa-history"></i>
+                        </button>
                         <button id="resetButton" class="btn btn-outline-secondary me-2 btn-icon" title="Reset Chat">
                             <i class="fas fa-undo"></i>
                         </button>
@@ -74,6 +77,17 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Chat Summary Page (Initially Hidden) -->
+        <div id="chatSummary" class="chat-summary d-none">
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                <h4>Chat History</h4>
+                <button id="closeSummaryButton" class="btn btn-outline-secondary btn-icon" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="summaryContent" class="summary-content"></div>
         </div>
     </div>
 
