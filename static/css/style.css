@@ -1,0 +1,109 @@
+[data-bs-theme=dark] {
+    --chat-bg: var(--bs-gray-800);
+    --user-message-bg: var(--bs-primary);
+    --bot-message-bg: var(--bs-secondary);
+}
+
+/* Category Cards */
+.category-card {
+    height: 200px;
+    border-radius: 15px;
+    padding: 20px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.category-card:hover {
+    transform: translateY(-5px);
+}
+
+.category-content {
+    position: relative;
+    z-index: 2;
+    color: var(--bs-light);
+}
+
+.category-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+.personality {
+    background-color: rgba(var(--bs-info-rgb), 0.2);
+}
+
+.soft-skills {
+    background-color: rgba(var(--bs-success-rgb), 0.2);
+}
+
+.communication {
+    background-color: rgba(var(--bs-purple-rgb), 0.2);
+}
+
+.interview {
+    background-color: rgba(var(--bs-warning-rgb), 0.2);
+}
+
+/* Chat Interface */
+.chat-container {
+    height: 80vh;
+    background-color: var(--chat-bg);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.chat-window {
+    height: calc(100% - 150px);
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.controls {
+    height: 150px;
+    background-color: var(--bs-gray-900);
+    padding: 20px;
+}
+
+.message {
+    margin-bottom: 15px;
+    max-width: 80%;
+}
+
+.user-message {
+    margin-left: auto;
+    background-color: var(--user-message-bg);
+    border-radius: 15px 15px 0 15px;
+}
+
+.bot-message {
+    margin-right: auto;
+    background-color: var(--bot-message-bg);
+    border-radius: 15px 15px 15px 0;
+}
+
+.message-content {
+    padding: 10px 15px;
+    color: var(--bs-light);
+}
+
+.record-button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.record-button.recording {
+    background-color: var(--bs-danger) !important;
+    transform: scale(1.1);
+}

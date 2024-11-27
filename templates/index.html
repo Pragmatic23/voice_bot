@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Educational AI Assistant</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container py-4">
+        <h1 class="text-center mb-4">Educational AI Assistant</h1>
+        <p class="text-center mb-5">Choose a category to start learning and improving</p>
+        
+        <!-- Category Selection Grid -->
+        <div id="categoryGrid" class="row g-4 mb-4">
+            <div class="col-md-6">
+                <div class="category-card personality" data-category="personality">
+                    <div class="category-content">
+                        <h3>Personality Development</h3>
+                        <p>Build confidence and improve self-growth</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="category-card soft-skills" data-category="soft_skills">
+                    <div class="category-content">
+                        <h3>Soft Skills Improvement</h3>
+                        <p>Enhance teamwork and emotional intelligence</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="category-card communication" data-category="communication">
+                    <div class="category-content">
+                        <h3>Communication Techniques</h3>
+                        <p>Master clarity and effective communication</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="category-card interview" data-category="interview">
+                    <div class="category-content">
+                        <h3>Interview Preparation</h3>
+                        <p>Practice interviews and receive feedback</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Interface (Initially Hidden) -->
+        <div id="chatInterface" class="chat-container d-none">
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                <h4 id="selectedCategory" class="m-0"></h4>
+                <button id="backButton" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+            </div>
+            <div id="chatWindow" class="chat-window"></div>
+            <div class="controls">
+                <div class="row align-items-center">
+                    <div class="col-md-4 text-center">
+                        <button id="recordButton" class="btn btn-primary record-button">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button id="resetButton" class="btn btn-outline-danger">
+                            Reset Chat
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://kit.fontawesome.com/your-font-awesome-kit.js"></script>
+    <script type="module" src="{{ url_for('static', filename='js/audio.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
