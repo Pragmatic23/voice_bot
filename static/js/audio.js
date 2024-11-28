@@ -18,21 +18,13 @@ class AudioHandler {
     }
 
     getSupportedMimeType() {
-        // Prioritize formats that are compatible with OpenAI's transcription service
-        const preferredTypes = [
-            'audio/webm',
-            'audio/ogg;codecs=opus',
-            'audio/wav',
-            'audio/mp4'
-        ];
-
-        for (const type of preferredTypes) {
-            if (MediaRecorder.isTypeSupported(type)) {
-                console.log(`[AudioHandler] Using MIME type: ${type}`);
-                return type;
-            }
+        // Use WebM with Opus codec as the preferred format
+        const mimeType = 'audio/webm;codecs=opus';
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+            console.log(`[AudioHandler] Using MIME type: ${mimeType}`);
+            return mimeType;
         }
-        throw new Error('No supported audio MIME types found');
+        throw new Error('WebM with Opus codec is not supported in this browser');
     }
 
     async startRecording(continuous = false) {

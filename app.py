@@ -87,7 +87,7 @@ def process_audio_route():
             'audio/wav': None,
             'audio/x-wav': None,
             'audio/wave': None,
-            'audio/webm': None
+            'audio/webm': 'opus'  # Specifically allow WebM with Opus codec
         }
         
         # Parse content type and codec

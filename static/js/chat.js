@@ -189,12 +189,11 @@
         async startRecording() {
             try {
                 this.updateStageProgress('recording');
-                const continuousMode = document.getElementById('continuousMode').checked;
-                console.log(`[ChatInterface] Starting recording in ${continuousMode ? 'continuous' : 'single'} mode`);
+                console.log('[ChatInterface] Starting recording in continuous mode');
     
-                if (continuousMode) {
-                    // Set up speech end callback for continuous mode
-                    this.audioHandler.setSpeechEndCallback(async (audioBlob) => {
+                // Always use continuous mode
+                // Set up speech end callback for continuous mode
+                this.audioHandler.setSpeechEndCallback(async (audioBlob) => {
                         try {
                             console.log('[ChatInterface] Speech chunk detected, processing audio...');
     
@@ -216,13 +215,10 @@
                     });
                 }
     
-                await this.audioHandler.startRecording(continuousMode);
+                await this.audioHandler.startRecording(true);  // Always use continuous mode
                 this.elements.recordButton.classList.add('recording');
                 this.elements.recordButton.querySelector('i').className = 'fas fa-stop';
-    
-                if (continuousMode) {
-                    this.showInfo('Continuous mode active. Speaking will be automatically detected.');
-                }
+                this.showInfo('Voice chat active. Speaking will be automatically detected.');
             } catch (error) {
                 console.error('[ChatInterface] Failed to start recording:', error);
                 this.showError(error.message || 'Failed to start recording. Please try again.');
@@ -417,24 +413,7 @@
             });
         }
     
-        exportChat() {
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `chat-export-${timestamp}.txt`;
-            
-            const content = this.messageHistory.map(message => 
-                `[${message.sender.toUpperCase()}] ${message.text}`
-            ).join('\n\n');
-            
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            link.click();
-            
-            URL.revokeObjectURL(url);
-        }
+        
     
         endSession() {
             this.resetChat(true);
