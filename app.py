@@ -26,10 +26,6 @@ class RequestIDFilter(logging.Filter):
 logger = logging.getLogger(__name__)
 logger.addFilter(RequestIDFilter())
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 class Base(DeclarativeBase):
     pass
 
@@ -132,59 +128,114 @@ def process_audio_route():
         }
         logger.info("Received audio processing request", extra=request_details)
         
-        # Process all async operations using asyncio
         async def process_request():
-            # Enhanced logging for audio processing steps
-            logger.info("Starting audio processing pipeline", extra={'request_id': request_id})
-            
-            # Process audio using Whisper API
-            transcription_start = time.time()
-            logger.info("Initiating audio transcription", extra={'request_id': request_id})
             try:
-                text = await process_audio(audio_file, OPENAI_API_KEY)
-                transcription_time = time.time() - transcription_start
-                logger.info(f"Audio transcription completed in {transcription_time:.2f}s - Text length: {len(text)} chars",
-                           extra={'request_id': request_id})
+                # Enhanced logging for audio processing steps
+                logger.info("Starting audio processing pipeline", 
+                          extra={'request_id': request_id, 'content_type': content_type})
+                
+                # Process audio using Whisper API
+                transcription_start = time.time()
+                logger.info("Initiating audio transcription", extra={'request_id': request_id})
+                
+                try:
+                    text = await process_audio(audio_file, OPENAI_API_KEY)
+                    transcription_time = time.time() - transcription_start
+                    logger.info(
+                        "Audio transcription completed",
+                        extra={
+                            'request_id': request_id,
+                            'processing_time': f"{transcription_time:.2f}s",
+                            'text_length': len(text),
+                            'content_type': content_type
+                        }
+                    )
+                    
+                    # Get conversation history from session
+                    history = session.get('chat_history', [])
+                    
+                    # Generate response using GPT
+                    gpt_start = time.time()
+                    response = await generate_response(text, category, history, OPENAI_API_KEY)
+                    logger.info(
+                        "GPT response generated",
+                        extra={
+                            'request_id': request_id,
+                            'processing_time': f"{time.time() - gpt_start:.2f}s"
+                        }
+                    )
+                    
+                    # Convert to speech
+                    tts_start = time.time()
+                    audio_response = await text_to_speech(response, voice_model)
+                    logger.info(
+                        "Text-to-speech completed",
+                        extra={
+                            'request_id': request_id,
+                            'processing_time': f"{time.time() - tts_start:.2f}s"
+                        }
+                    )
+                    
+                    return text, response, audio_response
+                    
+                except ValueError as e:
+                    logger.error(
+                        "Audio processing validation error",
+                        extra={
+                            'request_id': request_id,
+                            'error_type': 'ValidationError',
+                            'error_message': str(e)
+                        }
+                    )
+                    return None, str(e), None
+                except Exception as e:
+                    logger.error(
+                        "Audio transcription failed",
+                        extra={
+                            'request_id': request_id,
+                            'error_type': type(e).__name__,
+                            'error_message': str(e)
+                        }
+                    )
+                    return None, f"Error processing audio: {str(e)}", None
             except Exception as e:
-                logger.error(f"Audio transcription failed: {str(e)}", 
-                           extra={'request_id': request_id, 'error_type': type(e).__name__})
-                return jsonify({'error': f'Error processing audio: {str(e)}', 'request_id': request_id}), 500
-            
-            # Get conversation history from session
-            history = session.get('chat_history', [])
-            logger.info(f"[{request_id}] Retrieved conversation history: {len(history)} messages")
-            
-            # Generate response using GPT
-            gpt_start = time.time()
-            try:
-                response = await generate_response(text, category, history, OPENAI_API_KEY)
-                logger.info(f"[{request_id}] GPT response generated in {time.time() - gpt_start:.2f}s")
-            except Exception as e:
-                logger.error(f"[{request_id}] GPT response generation failed: {str(e)}")
-                return jsonify({'error': f'Error generating response: {str(e)}'}), 500
-            
-            # Convert to speech
-            tts_start = time.time()
-            try:
-                audio_response = await text_to_speech(response, voice_model)
-                logger.info(f"[{request_id}] Text-to-speech completed in {time.time() - tts_start:.2f}s")
-            except Exception as e:
-                logger.error(f"[{request_id}] Text-to-speech conversion failed: {str(e)}")
-                return jsonify({'error': f'Error converting text to speech: {str(e)}'}), 500
-            
-            return text, response, audio_response
+                logger.error(
+                    "Unexpected error in process_request",
+                    extra={
+                        'request_id': request_id,
+                        'error_type': type(e).__name__,
+                        'error_message': str(e)
+                    }
+                )
+                return None, f"Unexpected error: {str(e)}", None
 
         # Run async operations
-        text, response, audio_response = asyncio.run(process_request())
+        result = asyncio.run(process_request())
         
-        # Update conversation history
-        history = session.get('chat_history', [])
-        history.append({'role': 'user', 'content': text})
-        history.append({'role': 'assistant', 'content': response})
-        session['chat_history'] = history[-10:]  # Keep last 10 messages
+        # Handle failed processing
+        if not result or len(result) != 3:
+            error_message = result[1] if result and len(result) > 1 else "Processing failed"
+            logger.error(f"Processing failed: {error_message}", extra={'request_id': request_id})
+            return jsonify({'error': error_message, 'request_id': request_id}), 500
+            
+        text, response, audio_response = result
+        
+        # Update conversation history only if processing was successful
+        if text and response:
+            history = session.get('chat_history', [])
+            history.append({'role': 'user', 'content': text})
+            history.append({'role': 'assistant', 'content': response})
+            session['chat_history'] = history[-10:]  # Keep last 10 messages
         
         total_time = time.time() - start_time
-        logger.info(f"[{request_id}] Request completed successfully in {total_time:.2f}s")
+        logger.info(
+            "Request completed",
+            extra={
+                'request_id': request_id,
+                'total_time': f"{total_time:.2f}s",
+                'success': bool(text and response and audio_response)
+            }
+        )
         
         return jsonify({
             'text': text,

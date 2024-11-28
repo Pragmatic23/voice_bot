@@ -52,17 +52,40 @@ class AudioHandler {
             
             // Create and configure MediaRecorder with enhanced settings
             console.log('[AudioHandler] Configuring MediaRecorder with optimal settings...');
-            const options = {
-                mimeType: 'audio/webm;codecs=opus',
-                audioBitsPerSecond: 128000 // 128kbps for good quality
-            };
-
-            // Verify MediaRecorder support for specified options
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                throw new Error(`Browser does not support ${options.mimeType} recording`);
+            
+            // Define supported MIME types in order of preference
+            const supportedMimeTypes = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/ogg;codecs=opus',
+                'audio/ogg'
+            ];
+            
+            // Find the first supported MIME type
+            const mimeType = supportedMimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+            if (!mimeType) {
+                throw new Error('None of the preferred audio formats are supported by your browser');
             }
-
-            this.mediaRecorder = new MediaRecorder(this.stream, options);
+            
+            console.log(`[AudioHandler] Using MIME type: ${mimeType}`);
+            
+            const options = {
+                mimeType: mimeType,
+                audioBitsPerSecond: 128000, // 128kbps for good quality
+                bitsPerSecond: 128000
+            };
+            
+            // Configure audio context for proper format
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(this.stream);
+            const destination = audioContext.createMediaStreamDestination();
+            
+            // Add audio processing node for proper format
+            const scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
+            source.connect(scriptNode);
+            scriptNode.connect(destination);
+            
+            this.mediaRecorder = new MediaRecorder(destination.stream, options);
             this.audioChunks = [];
             
             this.mediaRecorder.ondataavailable = (event) => {
@@ -157,7 +180,7 @@ class AudioHandler {
 
                         // Create audio blob with proper codec
                         const audioBlob = new Blob(this.audioChunks, { 
-                            type: 'audio/webm;codecs=opus'
+                            type: this.mediaRecorder.mimeType
                         });
 
                         // Verify blob was created successfully

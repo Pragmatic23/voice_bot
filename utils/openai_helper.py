@@ -86,25 +86,89 @@ async def process_audio(audio_file, api_key):
             import os
             
             logger.info("Converting WebM to WAV format", extra={'request_id': request_id})
+            
+            # Validate WebM container before processing
+            def validate_webm(file_path):
+                try:
+                    result = subprocess.run([
+                        'ffprobe', '-v', 'error',
+                        '-select_streams', 'a:0',
+                        '-show_entries', 'stream=codec_name',
+                        '-of', 'default=noprint_wrappers=1:nokey=1',
+                        file_path
+                    ], capture_output=True, text=True, check=True)
+                    codec = result.stdout.strip()
+                    logger.info(f"Detected audio codec: {codec}", extra={'request_id': request_id})
+                    return codec == 'opus'
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"WebM validation failed: {e.stderr}", extra={'request_id': request_id})
+                    return False
+            
             with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_webm:
                 audio_file.save(temp_webm.name)
                 wav_path = temp_webm.name.replace('.webm', '.wav')
                 
+                # Validate WebM container
+                if not validate_webm(temp_webm.name):
+                    raise ValueError("Invalid WebM container or unsupported codec")
+                
                 try:
-                    subprocess.run([
-                        'ffmpeg', '-i', temp_webm.name,
-                        '-acodec', 'pcm_s16le',
-                        '-ar', '16000',
-                        '-ac', '1',
-                        '-y', wav_path
-                    ], check=True, capture_output=True)
+                    # Enhanced FFmpeg command with better WebM/Opus handling
+                    conversion_command = [
+                        'ffmpeg',
+                        '-y',  # Overwrite output file
+                        '-fflags', '+bitexact',  # Ensure exact stream copying
+                        '-i', temp_webm.name,
+                        '-acodec', 'pcm_s16le',  # Output codec
+                        '-ar', '16000',  # Sample rate
+                        '-ac', '1',  # Mono audio
+                        '-f', 'wav',  # Force WAV format
+                        '-flags', '+bitexact',  # Ensure deterministic output
+                        wav_path
+                    ]
                     
-                    logger.info("Successfully converted WebM to WAV", extra={'request_id': request_id})
+                    # Run conversion with detailed error capturing
+                    process = subprocess.run(
+                        conversion_command,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    
+                    # Verify the converted file exists and has content
+                    if not os.path.exists(wav_path) or os.path.getsize(wav_path) == 0:
+                        raise ValueError("Conversion produced empty or missing file")
+                    
+                    logger.info(
+                        "Successfully converted WebM to WAV",
+                        extra={
+                            'request_id': request_id,
+                            'output_size': os.path.getsize(wav_path),
+                            'sample_rate': '16000',
+                            'channels': '1'
+                        }
+                    )
                     audio_file = open(wav_path, 'rb')
                 except subprocess.CalledProcessError as e:
-                    logger.error(f"FFmpeg conversion failed: {e.stderr.decode()}", 
-                               extra={'request_id': request_id})
-                    raise Exception("Audio conversion failed")
+                    error_msg = e.stderr if isinstance(e.stderr, str) else e.stderr.decode()
+                    logger.error(
+                        "FFmpeg conversion failed",
+                        extra={
+                            'request_id': request_id,
+                            'error': error_msg,
+                            'command': ' '.join(conversion_command)
+                        }
+                    )
+                    raise ValueError(f"Audio conversion failed: {error_msg}")
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error during conversion: {str(e)}",
+                        extra={
+                            'request_id': request_id,
+                            'error_type': type(e).__name__
+                        }
+                    )
+                    raise ValueError(f"Audio conversion failed: {str(e)}")
                 finally:
                     # Clean up temporary files
                     try:

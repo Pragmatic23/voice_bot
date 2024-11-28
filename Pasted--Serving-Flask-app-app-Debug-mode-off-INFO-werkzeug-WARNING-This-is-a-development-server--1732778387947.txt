@@ -1,0 +1,76 @@
+ * Serving Flask app 'app'
+ * Debug mode: off
+INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.196.117:5000
+INFO:werkzeug:Press CTRL+C to quit
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:15] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:15] "GET /static/css/style.css HTTP/1.1" 304 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:16] "GET /static/js/audio.js HTTP/1.1" 200 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:16] "GET /static/js/chat.js HTTP/1.1" 304 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET /static/css/style.css HTTP/1.1" 200 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET /static/js/audio.js HTTP/1.1" 200 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET /static/js/chat.js HTTP/1.1" 200 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET /static/css/style.css HTTP/1.1" 304 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET /static/js/audio.js HTTP/1.1" 304 -
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:17] "GET /static/js/chat.js HTTP/1.1" 304 -
+INFO:__main__:New audio processing request received
+INFO:__main__:Starting request validation
+INFO:__main__:Request headers: {'Host': 'd6bf0c4b-c257-4e5e-b91d-879e28383c93-00-20ykquaqzjz4w.pike.replit.dev', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36', 'Content-Length': '64868', 'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br, zstd', 'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8', 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundary093uQh4srYJosLSb', 'Cookie': 'session=.eJx9Uc1Kw0AQfpWvueQS8gBegtpDA-pBCh5EZE2m3aWbnbi7bQil7-6sKba0xdOQzH6_s88areKnNiGyH7O7933WsIvkYnaXLchaLqCvR4k3PcIEREHCU8O-NW5dYSlsecAgA3XeIahR_peo0bLLIwblIiIfITCxxJNokytklb5eKfTsAuG-APfk0nwoME-bo0qiohKLrquyIvNsSbxuA_nsUFzZn6GOCERdgDUbwsjb3BO02iWmwB1JjLAl8WyihjqFQUs704hQyqFJQOJbhSB2p7c9-cBOWaw9Dwnr2oQhy30nDgS4SnJJi2Q54ltkopF0YA_x2ZB3qT2rIrWJ_Y_xjKbAishi5eloYDM7pZ7sSKcX0R9Vb6Lw8Aq1a436t6elJjQXgHTbFxowJ6uNJEmXThVIDDm5lEM2TGW2U69ibeN4qPCsxi_6LXZ6eCOeieN5wtTGRZfVzYgfhx-vBPDZ.Z0gV3g.ctA-Mez_I0x82oPPr0JU-C6KWng', 'Origin': 'https://d6bf0c4b-c257-4e5e-b91d-879e28383c93-00-20ykquaqzjz4w.pike.replit.dev', 'Referer': 'https://d6bf0c4b-c257-4e5e-b91d-879e28383c93-00-20ykquaqzjz4w.pike.replit.dev/', 'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"', 'Sec-Ch-Ua-Mobile': '?0', 'Sec-Ch-Ua-Platform': '"Windows"', 'Sec-Fetch-Dest': 'empty', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'same-origin', 'X-Forwarded-For': '49.36.57.30, 10.84.4.45', 'X-Forwarded-Proto': 'https', 'X-Replit-User-Bio': '', 'X-Replit-User-Id': '', 'X-Replit-User-Name': '', 'X-Replit-User-Profile-Image': '', 'X-Replit-User-Roles': '', 'X-Replit-User-Teams': '', 'X-Replit-User-Url': ''}
+INFO:__main__:Audio file received - Size: 64868 bytes, Type: audio/webm;codecs=opus
+INFO:__main__:Parsed content type - Base: audio/webm, Codec: opus
+INFO:__main__:Received audio processing request
+INFO:__main__:Starting audio processing pipeline
+INFO:__main__:Initiating audio transcription
+INFO:utils.openai_helper:Starting audio processing
+INFO:utils.openai_helper:Converting WebM to WAV format
+INFO:utils.openai_helper:Successfully converted WebM to WAV
+ERROR:utils.openai_helper:[audio_1732778309763] Audio processing failed: [Errno 2] No such file or directory: '/tmp/tmp469thyg6.wav'
+Attempt 1 failed, retrying in 1 seconds...
+INFO:utils.openai_helper:Starting audio processing
+INFO:utils.openai_helper:Converting WebM to WAV format
+ERROR:utils.openai_helper:FFmpeg conversion failed: ffmpeg version 6.1.1 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13.2.0 (GCC)
+  configuration: --disable-static --prefix=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1 --target_os=linux --arch=x86_64 --pkg-config=pkg-config --enable-gpl --enable-version3 --disable-nonfree --disable-static --enable-shared --enable-pic --disable-thumb --disable-small --enable-runtime-cpudetect --disable-gray --enable-swscale-alpha --enable-hardcoded-tables --enable-safe-bitstream-reader --enable-pthreads --disable-w32threads --disable-os2threads --enable-network --enable-pixelutils --datadir=/nix/store/71hcrwn1g6ncki859v14jq18i8fx84sk-ffmpeg-6.1.1-data/share/ffmpeg --enable-ffmpeg --enable-ffplay --enable-ffprobe --bindir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-bin/bin --enable-avcodec --enable-avdevice --enable-avfilter --enable-avformat --enable-avutil --enable-postproc --enable-swresample --enable-swscale --libdir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-lib/lib --incdir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-dev/include --enable-doc --enable-htmlpages --enable-manpages --mandir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-man/share/man --enable-podpages --enable-txtpages --docdir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-doc/share/doc/ffmpeg --enable-alsa --disable-libaom --disable-appkit --disable-libaribcaption --enable-libass --disable-audiotoolbox --disable-avfoundation --disable-avisynth --disable-libbluray --disable-libbs2b --enable-bzlib --disable-libcaca --disable-libcelt --disable-chromaprint --disable-libcodec2 --disable-coreimage --disable-cuda --disable-cuda-llvm --enable-cuvid --enable-libdav1d --disable-libdc1394 --enable-libdrm --disable-libfdk-aac --enable-ffnvcodec --disable-libflite --enable-fontconfig --enable-libfontconfig --enable-libfreetype --disable-frei0r --disable-libfribidi --disable-libgme --enable-gnutls --disable-libgsm --enable-libharfbuzz --enable-iconv --disable-libjack --disable-libjxl --disable-ladspa --enable-lzma --disable-libmfx --disable-libmodplug --enable-libmp3lame --disable-libmysofa --enable-nvdec --enable-nvenc --disable-openal --disable-opencl --disable-libopencore-amrnb --disable-libopencore-amrwb --disable-opengl --disable-libopenh264 --disable-libopenjpeg --disable-libopenmpt --enable-libopus --disable-libplacebo --enable-libpulse --disable-librav1e --disable-librtmp --disable-libsmbclient --enable-sdl2 --disable-libshaderc --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --disable-librsvg --enable-libsvtav1 --disable-libtensorflow --enable-libtheora --enable-libv4l2 --enable-v4l2-m2m --enable-vaapi --enable-vdpau --disable-libvpl --disable-videotoolbox --disable-libvidstab --disable-libvmaf --disable-libvo-amrwbenc --enable-libvorbis --enable-libvpx --enable-vulkan --disable-libwebp --enable-libx264 --enable-libx265 --disable-libxavs --disable-libxcb --disable-libxcb-shape --disable-libxcb-shm --disable-libxcb-xfixes --disable-xlib --disable-libxml2 --enable-libxvid --enable-libzimg --enable-zlib --disable-libzmq --disable-debug --enable-optimizations --disable-extra-warnings --disable-stripping
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+[matroska,webm @ 0x23917c0] Format matroska,webm detected only with low score of 1, misdetection possible!
+[matroska,webm @ 0x23917c0] EBML header parsing failed
+[in#0 @ 0x23916c0] Error opening input: Invalid data found when processing input
+Error opening input file /tmp/tmpcgpber0h.webm.
+Error opening input files: Invalid data found when processing input
+
+ERROR:utils.openai_helper:[audio_1732778310806] Audio processing failed: Audio conversion failed
+Attempt 2 failed, retrying in 1 seconds...
+INFO:utils.openai_helper:Starting audio processing
+INFO:utils.openai_helper:Converting WebM to WAV format
+ERROR:utils.openai_helper:FFmpeg conversion failed: ffmpeg version 6.1.1 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13.2.0 (GCC)
+  configuration: --disable-static --prefix=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1 --target_os=linux --arch=x86_64 --pkg-config=pkg-config --enable-gpl --enable-version3 --disable-nonfree --disable-static --enable-shared --enable-pic --disable-thumb --disable-small --enable-runtime-cpudetect --disable-gray --enable-swscale-alpha --enable-hardcoded-tables --enable-safe-bitstream-reader --enable-pthreads --disable-w32threads --disable-os2threads --enable-network --enable-pixelutils --datadir=/nix/store/71hcrwn1g6ncki859v14jq18i8fx84sk-ffmpeg-6.1.1-data/share/ffmpeg --enable-ffmpeg --enable-ffplay --enable-ffprobe --bindir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-bin/bin --enable-avcodec --enable-avdevice --enable-avfilter --enable-avformat --enable-avutil --enable-postproc --enable-swresample --enable-swscale --libdir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-lib/lib --incdir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-dev/include --enable-doc --enable-htmlpages --enable-manpages --mandir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-man/share/man --enable-podpages --enable-txtpages --docdir=/nix/store/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-ffmpeg-6.1.1-doc/share/doc/ffmpeg --enable-alsa --disable-libaom --disable-appkit --disable-libaribcaption --enable-libass --disable-audiotoolbox --disable-avfoundation --disable-avisynth --disable-libbluray --disable-libbs2b --enable-bzlib --disable-libcaca --disable-libcelt --disable-chromaprint --disable-libcodec2 --disable-coreimage --disable-cuda --disable-cuda-llvm --enable-cuvid --enable-libdav1d --disable-libdc1394 --enable-libdrm --disable-libfdk-aac --enable-ffnvcodec --disable-libflite --enable-fontconfig --enable-libfontconfig --enable-libfreetype --disable-frei0r --disable-libfribidi --disable-libgme --enable-gnutls --disable-libgsm --enable-libharfbuzz --enable-iconv --disable-libjack --disable-libjxl --disable-ladspa --enable-lzma --disable-libmfx --disable-libmodplug --enable-libmp3lame --disable-libmysofa --enable-nvdec --enable-nvenc --disable-openal --disable-opencl --disable-libopencore-amrnb --disable-libopencore-amrwb --disable-opengl --disable-libopenh264 --disable-libopenjpeg --disable-libopenmpt --enable-libopus --disable-libplacebo --enable-libpulse --disable-librav1e --disable-librtmp --disable-libsmbclient --enable-sdl2 --disable-libshaderc --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libssh --disable-librsvg --enable-libsvtav1 --disable-libtensorflow --enable-libtheora --enable-libv4l2 --enable-v4l2-m2m --enable-vaapi --enable-vdpau --disable-libvpl --disable-videotoolbox --disable-libvidstab --disable-libvmaf --disable-libvo-amrwbenc --enable-libvorbis --enable-libvpx --enable-vulkan --disable-libwebp --enable-libx264 --enable-libx265 --disable-libxavs --disable-libxcb --disable-libxcb-shape --disable-libxcb-shm --disable-libxcb-xfixes --disable-xlib --disable-libxml2 --enable-libxvid --enable-libzimg --enable-zlib --disable-libzmq --disable-debug --enable-optimizations --disable-extra-warnings --disable-stripping
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+[matroska,webm @ 0x20937c0] Format matroska,webm detected only with low score of 1, misdetection possible!
+[matroska,webm @ 0x20937c0] EBML header parsing failed
+[in#0 @ 0x20936c0] Error opening input: Invalid data found when processing input
+Error opening input file /tmp/tmpihkol2os.webm.
+Error opening input files: Invalid data found when processing input
+
+ERROR:utils.openai_helper:[audio_1732778311828] Audio processing failed: Audio conversion failed
+ERROR:__main__:Audio transcription failed: Audio processing failed: Audio conversion failed
+ERROR:__main__:[req_1732778309747] Unexpected error: not enough values to unpack (expected 3, got 2)
+INFO:werkzeug:172.31.196.117 - - [28/Nov/2024 07:18:31] "POST /process-audio HTTP/1.1" 500 -
