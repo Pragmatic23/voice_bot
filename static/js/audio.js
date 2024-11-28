@@ -64,125 +64,27 @@ class AudioHandler {
 
             this.mediaRecorder = new MediaRecorder(this.stream, options);
             this.audioChunks = [];
-            this.processingChunk = false;
             
-            // Initialize WebSocket connection with error handling
-            this.socket = io();
-            this.socket.on('connect', () => {
-                console.log('[AudioHandler] WebSocket connected');
-            });
-
-            this.socket.on('transcription', (data) => {
-                try {
-                    console.log('[AudioHandler] Received transcription data');
-                    if (!data || typeof data !== 'object') {
-                        throw new Error('Invalid transcription data format');
-                    }
-                    
-                    // Validate transcription object structure
-                    if (!data.hasOwnProperty('text')) {
-                        throw new Error('Missing text property in transcription');
-                    }
-                    
-                    console.log('[AudioHandler] Parsed transcription:', data);
-                    if (this.onTranscriptionReceived) {
-                        this.onTranscriptionReceived(data);
-                    }
-                } catch (error) {
-                    console.error('[AudioHandler] Error processing transcription:', error);
-                    if (this.onError) {
-                        this.onError('Failed to process transcription: ' + error.message);
-                    }
-                }
-            });
-
-            this.socket.on('error', (error) => {
-                console.error('[AudioHandler] WebSocket error:', error);
-                if (this.onError) {
-                    this.onError(typeof error === 'string' ? error : 
-                               (error.message || 'Unknown WebSocket error'));
-                }
-            });
-
-            // Enhanced real-time audio chunk handling
-            this.mediaRecorder.ondataavailable = async (event) => {
+            this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     const chunkSize = event.data.size;
                     console.log(`[AudioHandler] Audio chunk received: ${chunkSize} bytes`);
                     
-                    try {
-                        // Detailed chunk validation
-                        if (chunkSize > this.maxAudioSize) {
-                            throw new Error(`Audio chunk size (${chunkSize} bytes) exceeds maximum limit`);
-                        }
-                        
-                        if (chunkSize < 100) { // Adjusted minimum chunk size
-                            console.warn(`[AudioHandler] Very small audio chunk detected: ${chunkSize} bytes`);
-                            return; // Skip processing for extremely small chunks
-                        }
-                        
-                        // Calculate and log total size
-                        const totalSize = this.audioChunks.reduce((acc, chunk) => acc + chunk.size, 0) + chunkSize;
-                        console.log(`[AudioHandler] Total recording size: ${totalSize} bytes`);
-                        
-                        // Store chunk locally
-                        this.audioChunks.push(event.data);
-                        
-                        // Process chunk if we're not already processing
-                        if (!this.processingChunk) {
-                            this.processingChunk = true;
-                            try {
-                                // Convert chunk to base64
-                                const base64Audio = await this.chunkToBase64(event.data);
-                                
-                                // Emit chunk with metadata
-                                this.socket.emit('audio_chunk', {
-                                    audio: base64Audio,
-                                    timestamp: Date.now(),
-                                    chunkSize: chunkSize,
-                                    totalSize: totalSize,
-                                    isLastChunk: false
-                                });
-                                
-                                console.log('[AudioHandler] Successfully processed and sent chunk');
-                            } catch (processError) {
-                                console.error('[AudioHandler] Chunk processing error:', processError);
-                                if (this.onError) {
-                                    this.onError('Failed to process audio chunk: ' + processError.message);
-                                }
-                            } finally {
-                                this.processingChunk = false;
-                            }
-                        }
-                    } catch (error) {
-                        console.error('[AudioHandler] Error handling audio chunk:', error);
-                        if (this.onError) {
-                            this.onError('Audio processing error: ' + error.message);
-                        }
-                        await this.cleanup();
+                    // Detailed chunk validation
+                    if (chunkSize > this.maxAudioSize) {
+                        console.error(`[AudioHandler] Audio chunk size (${chunkSize} bytes) exceeds maximum limit of ${this.maxAudioSize} bytes`);
+                        this.cleanup();
+                        throw new Error('Recording too large. Please keep your message shorter.');
                     }
+                    
+                    if (chunkSize < 1000) {
+                        console.warn(`[AudioHandler] Small audio chunk detected: ${chunkSize} bytes`);
+                    }
+                    
+                    const totalSize = this.audioChunks.reduce((acc, chunk) => acc + chunk.size, 0) + chunkSize;
+                    console.log(`[AudioHandler] Total recording size: ${totalSize} bytes`);
+                    this.audioChunks.push(event.data);
                 }
-            };
-            
-            // Helper method to convert chunk to base64
-            this.chunkToBase64 = (chunk) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        try {
-                            const base64Audio = reader.result.split(',')[1];
-                            if (!base64Audio) {
-                                reject(new Error('Failed to convert audio to base64'));
-                                return;
-                            }
-                            resolve(base64Audio);
-                        } catch (error) {
-                            reject(error);
-                        }
-                    };
-                    reader.onerror = () => reject(new Error('FileReader error'));
-                    reader.readAsDataURL(chunk);
-                });
             };
 
             this.mediaRecorder.onerror = (error) => {
@@ -202,7 +104,7 @@ class AudioHandler {
                 this.isRecording = false;
             };
 
-            this.mediaRecorder.start(100); // Collect data in 100ms chunks for more responsive streaming
+            this.mediaRecorder.start(1000); // Collect data in 1-second chunks
             console.log(`[AudioHandler] Recording initialized in ${(performance.now() - startTime).toFixed(2)}ms`);
             
             return true;

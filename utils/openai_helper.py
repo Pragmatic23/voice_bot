@@ -71,59 +71,6 @@ def validate_audio_format(audio_file):
         raise ValueError(f"Unsupported codec: {codec} for format {base_type}")
     
     return True
-async def process_audio_chunk(audio_file, api_key, callback=None):
-    """Process audio chunk with streaming support."""
-    try:
-        # Validate audio format
-        validate_audio_format(audio_file)
-        
-        client = OpenAI(api_key=api_key)
-        
-        # Save the audio chunk temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
-            try:
-                # Handle BytesIO object properly
-                if hasattr(audio_file, 'read'):
-                    audio_data = audio_file.read()
-                    with open(temp_audio.name, 'wb') as f:
-                        f.write(audio_data)
-                else:
-                    audio_file.save(temp_audio.name)
-                
-                # Process chunk using Whisper API with enhanced error handling
-                try:
-                    with open(temp_audio.name, 'rb') as audio:
-                        transcript = client.audio.transcriptions.create(
-                            model="whisper-1",
-                            file=audio,
-                            language="en"
-                        )
-                        
-                        if not transcript or not transcript.text:
-                            raise ValueError("Empty transcription received")
-                        
-                        if callback and transcript.text:
-                            try:
-                                await callback(transcript.text)
-                            except Exception as callback_error:
-                                logger.error(f"Callback execution failed: {str(callback_error)}")
-                                # Continue processing even if callback fails
-                        
-                        return transcript.text
-                except Exception as api_error:
-                    logger.error(f"Whisper API error: {str(api_error)}")
-                    raise Exception(f"Transcription failed: {str(api_error)}")
-                    
-            finally:
-                try:
-                    os.unlink(temp_audio.name)
-                except Exception as cleanup_error:
-                    logger.warning(f"Failed to cleanup temporary file: {str(cleanup_error)}")
-                    
-    except Exception as e:
-        error_msg = f"Error processing audio chunk: {str(e)}"
-        logger.error(error_msg)
-        raise Exception(error_msg)
 
 @retry_on_exception(retries=3, delay=1)
 async def process_audio(audio_file, api_key):

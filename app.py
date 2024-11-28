@@ -1,106 +1,203 @@
 import os
+import time
 import logging
+import sys
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
-from flask_socketio import SocketIO, emit
-from utils.openai_helper import process_audio, generate_response, text_to_speech, process_audio_chunk
+from utils.openai_helper import process_audio, generate_response, text_to_speech
 import asyncio
-import base64
-import io
 
 # Enhanced logging configuration
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    stream=sys.stdout
 )
+
+# Add request_id filter
+class RequestIDFilter(logging.Filter):
+    def filter(self, record):
+        record.request_id = getattr(record, 'request_id', 'N/A')
+        return True
+
+logger = logging.getLogger(__name__)
+logger.addFilter(RequestIDFilter())
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
-app = Flask(__name__)
-app.secret_key = os.urandom(24)
-
-# Database configuration
 class Base(DeclarativeBase):
     pass
 
 db = SQLAlchemy(model_class=Base)
-
+app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "a secret key"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///chat.db"
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
-
-# Initialize SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
-
-# Initialize database
 db.init_app(app)
 
-# Store audio chunks temporarily
-audio_chunks = {}
-
-# Get OpenAI API key
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/process-audio', methods=['POST'])
-async def process_audio_route():
+def process_audio_route():
+    start_time = time.time()
+    request_id = f"req_{int(start_time * 1000)}"
+    logger.info("New audio processing request received", extra={'request_id': request_id})
+    
     try:
+        # Enhanced request validation logging
+        logger.info("Starting request validation", extra={'request_id': request_id})
+        logger.info(f"Request headers: {dict(request.headers)}", extra={'request_id': request_id})
+        
         if 'audio' not in request.files:
-            return jsonify({'error': 'No audio file provided'}), 400
+            logger.error("No audio file in request", extra={'request_id': request_id})
+            return jsonify({'error': 'No audio file provided', 'request_id': request_id}), 400
         
         audio_file = request.files['audio']
         if not audio_file:
-            return jsonify({'error': 'Empty audio file'}), 400
+            logger.error("Empty audio file received", extra={'request_id': request_id})
+            return jsonify({'error': 'Empty audio file', 'request_id': request_id}), 400
             
-        text = await process_audio(audio_file, OPENAI_API_KEY)
-        return jsonify({'text': text})
+        # Log file details
+        file_size = request.content_length
+        content_type = audio_file.content_type
+        logger.info(f"Audio file received - Size: {file_size} bytes, Type: {content_type}", 
+                   extra={'request_id': request_id})
         
-    except Exception as e:
-        logger.error(f"Error processing audio: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        # Validate file size
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file_size > max_size:
+            logger.error(f"File size ({file_size} bytes) exceeds maximum allowed size ({max_size} bytes)",
+                        extra={'request_id': request_id})
+            return jsonify({'error': 'File too large', 'request_id': request_id}), 400
+            
+        # Enhanced content type validation with codec support
+        allowed_types = {
+            'audio/wav': None,
+            'audio/wave': None,
+            'audio/x-wav': None,
+            'audio/webm': 'opus'
+        }
+        
+        # Parse content type and codec
+        content_parts = content_type.split(';')
+        base_type = content_parts[0].strip()
+        codec = None
+        
+        if len(content_parts) > 1:
+            codec_part = [p for p in content_parts[1:] if 'codecs=' in p]
+            if codec_part:
+                codec = codec_part[0].split('=')[1].strip('"')
+        
+        logger.info(f"Parsed content type - Base: {base_type}, Codec: {codec}",
+                   extra={'request_id': request_id})
+        
+        if base_type not in allowed_types:
+            logger.error(f"Invalid base content type: {base_type}",
+                        extra={'request_id': request_id})
+            return jsonify({
+                'error': f'Invalid audio format. Allowed types: {", ".join(allowed_types.keys())}',
+                'request_id': request_id
+            }), 400
+            
+        if codec and allowed_types[base_type] != codec:
+            logger.error(f"Invalid codec: {codec} for type {base_type}",
+                        extra={'request_id': request_id})
+            return jsonify({
+                'error': f'Invalid codec. Expected {allowed_types[base_type] or "none"} for {base_type}',
+                'request_id': request_id
+            }), 400
+        
+        # Enhanced request details logging
+        category = request.form.get('category', 'general')
+        voice_model = request.form.get('voice_model', 'default')
+        request_details = {
+            'category': category,
+            'voice_model': voice_model,
+            'content_length': request.content_length,
+            'content_type': request.content_type,
+            'user_agent': request.headers.get('User-Agent'),
+            'request_id': request_id
+        }
+        logger.info("Received audio processing request", extra=request_details)
+        
+        # Process all async operations using asyncio
+        async def process_request():
+            # Enhanced logging for audio processing steps
+            logger.info("Starting audio processing pipeline", extra={'request_id': request_id})
+            
+            # Process audio using Whisper API
+            transcription_start = time.time()
+            logger.info("Initiating audio transcription", extra={'request_id': request_id})
+            try:
+                text = await process_audio(audio_file, OPENAI_API_KEY)
+                transcription_time = time.time() - transcription_start
+                logger.info(f"Audio transcription completed in {transcription_time:.2f}s - Text length: {len(text)} chars",
+                           extra={'request_id': request_id})
+            except Exception as e:
+                logger.error(f"Audio transcription failed: {str(e)}", 
+                           extra={'request_id': request_id, 'error_type': type(e).__name__})
+                return jsonify({'error': f'Error processing audio: {str(e)}', 'request_id': request_id}), 500
+            
+            # Get conversation history from session
+            history = session.get('chat_history', [])
+            logger.info(f"[{request_id}] Retrieved conversation history: {len(history)} messages")
+            
+            # Generate response using GPT
+            gpt_start = time.time()
+            try:
+                response = await generate_response(text, category, history, OPENAI_API_KEY)
+                logger.info(f"[{request_id}] GPT response generated in {time.time() - gpt_start:.2f}s")
+            except Exception as e:
+                logger.error(f"[{request_id}] GPT response generation failed: {str(e)}")
+                return jsonify({'error': f'Error generating response: {str(e)}'}), 500
+            
+            # Convert to speech
+            tts_start = time.time()
+            try:
+                audio_response = await text_to_speech(response, voice_model)
+                logger.info(f"[{request_id}] Text-to-speech completed in {time.time() - tts_start:.2f}s")
+            except Exception as e:
+                logger.error(f"[{request_id}] Text-to-speech conversion failed: {str(e)}")
+                return jsonify({'error': f'Error converting text to speech: {str(e)}'}), 500
+            
+            return text, response, audio_response
 
-@app.route('/generate-response', methods=['POST'])
-async def generate_response_route():
-    try:
-        data = request.get_json()
+        # Run async operations
+        text, response, audio_response = asyncio.run(process_request())
         
-        if not data or 'text' not in data:
-            return jsonify({'error': 'No text provided'}), 400
-            
-        text = data['text']
-        category = data.get('category', 'general')
-        history = data.get('history', [])
+        # Update conversation history
+        history = session.get('chat_history', [])
+        history.append({'role': 'user', 'content': text})
+        history.append({'role': 'assistant', 'content': response})
+        session['chat_history'] = history[-10:]  # Keep last 10 messages
         
-        response = await generate_response(text, category, history, OPENAI_API_KEY)
-        return jsonify({'response': response})
+        total_time = time.time() - start_time
+        logger.info(f"[{request_id}] Request completed successfully in {total_time:.2f}s")
         
+        return jsonify({
+            'text': text,
+            'response': response,
+            'audio': audio_response,
+            'processing_time': total_time
+        })
     except Exception as e:
-        logger.error(f"Error generating response: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/text-to-speech', methods=['POST'])
-async def text_to_speech_route():
-    try:
-        data = request.get_json()
-        
-        if not data or 'text' not in data:
-            return jsonify({'error': 'No text provided'}), 400
-            
-        text = data['text']
-        voice_model = data.get('voice_model', 'default')
-        
-        audio_data = await text_to_speech(text, voice_model)
-        return jsonify({'audio': audio_data})
-        
-    except Exception as e:
-        logger.error(f"Error in text-to-speech conversion: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"[{request_id}] Unexpected error: {str(e)}")
+        return jsonify({
+            'error': f'Unexpected error: {str(e)}',
+            'request_id': request_id
+        }), 500
 
 @app.route('/reset-session', methods=['POST'])
 def reset_session():
@@ -110,94 +207,6 @@ def reset_session():
     except Exception as e:
         return jsonify({'error': f'Error resetting session: {str(e)}'}), 500
 
-@socketio.on('connect')
-def handle_connect():
-    session_id = request.sid
-    audio_chunks[session_id] = []
-    logger.info(f"Client connected: {session_id}")
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    session_id = request.sid
-    if session_id in audio_chunks:
-        del audio_chunks[session_id]
-    logger.info(f"Client disconnected: {session_id}")
-
-@socketio.on('audio_chunk')
-def handle_audio_chunk(data):
-    try:
-        session_id = request.sid
-        timestamp = data.get('timestamp')
-        is_last_chunk = data.get('isLastChunk', False)
-        
-        if not data.get('audio'):
-            raise ValueError("No audio data received")
-        
-        # Decode base64 audio chunk with error handling
-        try:
-            audio_data = base64.b64decode(data['audio'])
-        except Exception as decode_error:
-            logger.error(f"Failed to decode base64 audio: {str(decode_error)}")
-            emit('error', {'message': 'Invalid audio data received'})
-            return
-        
-        # Validate chunk size
-        chunk_size = len(audio_data)
-        if chunk_size < 100:  # Minimum size threshold
-            logger.warning(f"Received very small audio chunk: {chunk_size} bytes")
-            emit('error', {'message': 'Audio chunk too small'})
-            return
-            
-        # Store chunk with session management
-        if session_id not in audio_chunks:
-            audio_chunks[session_id] = []
-            logger.info(f"New session started: {session_id}")
-            
-        audio_chunks[session_id].append(audio_data)
-        logger.debug(f"Added chunk of size {chunk_size} bytes to session {session_id}")
-        
-        # Process chunks when we have enough or on last chunk
-        if len(audio_chunks[session_id]) >= 5 or is_last_chunk:
-            try:
-                # Combine chunks for processing
-                combined_audio = b''.join(audio_chunks[session_id])
-                audio_file = io.BytesIO(combined_audio)
-                audio_file.content_type = 'audio/webm;codecs=opus'
-                
-                # Process audio chunk with proper error handling
-                async def process_and_emit(text):
-                    try:
-                        emit('transcription', {'text': text, 'timestamp': timestamp})
-                    except Exception as emit_error:
-                        logger.error(f"Failed to emit transcription: {str(emit_error)}")
-                
-                asyncio.run(process_audio_chunk(
-                    audio_file,
-                    OPENAI_API_KEY,
-                    callback=process_and_emit
-                ))
-                
-                # Manage chunks after processing
-                if not is_last_chunk:
-                    # Keep the latest chunk for overlap
-                    audio_chunks[session_id] = [audio_chunks[session_id][-1]]
-                    logger.debug(f"Retained last chunk for session {session_id}")
-                else:
-                    # Clear all chunks on last chunk
-                    audio_chunks[session_id] = []
-                    logger.info(f"Cleared all chunks for session {session_id}")
-                    
-            except Exception as process_error:
-                logger.error(f"Failed to process audio chunks: {str(process_error)}")
-                emit('error', {'message': f'Failed to process audio: {str(process_error)}'})
-                
-    except Exception as e:
-        error_msg = f"Error handling audio chunk: {str(e)}"
-        logger.error(error_msg)
-        emit('error', {'message': error_msg})
-
-if __name__ == '__main__':
-    with app.app_context():
-        import models
-        db.create_all()
-    socketio.run(app, host='0.0.0.0', port=5000)
+with app.app_context():
+    import models
+    db.create_all()
