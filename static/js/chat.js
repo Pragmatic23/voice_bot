@@ -20,7 +20,8 @@ class ChatInterface {
             resetButton: document.getElementById('resetButton'),
             endSessionButton: document.getElementById('endSessionButton'),
             historyButton: document.getElementById('historyButton'),
-            closeSummaryButton: document.getElementById('closeSummaryButton')
+            closeSummaryButton: document.getElementById('closeSummaryButton'),
+            exportButton: document.getElementById('exportButton')
         };
 
         // Verify all required elements exist
@@ -95,6 +96,10 @@ class ChatInterface {
 
         if (closeSummaryButton) {
             closeSummaryButton.addEventListener('click', () => this.hideChatSummary());
+        }
+
+        if (this.elements.exportButton) {
+            this.elements.exportButton.addEventListener('click', () => this.exportChat());
         }
     }
 
@@ -354,6 +359,51 @@ class ChatInterface {
             statusElement.id = 'processingStatus';
             statusElement.className = 'text-center mt-2 text-muted';
             this.elements.recordButton.parentNode.appendChild(statusElement);
+    async exportChat() {
+        if (this.messageHistory.length === 0) {
+            this.showError('No conversation to export');
+            return;
+        }
+
+        try {
+            // Format the chat history
+            const exportData = {
+                category: this.currentCategory,
+                timestamp: new Date().toISOString(),
+                messages: this.messageHistory.map(msg => ({
+                    type: msg.type,
+                    text: msg.text,
+                    timestamp: msg.timestamp.toISOString()
+                }))
+            };
+
+            // Create text version
+            let textContent = `Chat Export - ${exportData.category}\n`;
+            textContent += `Generated: ${new Date().toLocaleString()}\n\n`;
+            exportData.messages.forEach(msg => {
+                textContent += `[${new Date(msg.timestamp).toLocaleString()}] ${msg.type.toUpperCase()}: ${msg.text}\n`;
+            });
+
+            // Create Blob with text content
+            const blob = new Blob([textContent], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            
+            // Create download link
+            const a = document.createElement('a');
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            a.href = url;
+            a.download = `chat-export-${timestamp}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            this.showError('Failed to export chat: ' + error.message);
+        }
+    }
+
         }
         statusElement.textContent = message;
     }
