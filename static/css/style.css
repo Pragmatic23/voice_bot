@@ -5,16 +5,17 @@
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     position: relative;
     overflow: hidden;
-    z-index: 1;
     pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+    height: 200px;
+    border-radius: 15px;
+    padding: 20px;
 }
 
 .category-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 15px rgba(var(--bs-primary-rgb), 0.15);
-    z-index: 2;
 }
 
 .category-card:active {

@@ -8,24 +8,26 @@ class ChatInterface {
     }
 
     initializeElements() {
-        // Initialize all DOM elements with null checks
+        // Define all required elements
         this.elements = {
-            recordButton: document.getElementById('recordButton'),
-            chatWindow: document.getElementById('chatWindow'),
             categoryGrid: document.getElementById('categoryGrid'),
             chatInterface: document.getElementById('chatInterface'),
+            categoryHeader: document.getElementById('categoryHeader'),
+            selectedCategory: document.getElementById('selectedCategory'),
+            chatWindow: document.getElementById('chatWindow'),
+            recordButton: document.getElementById('recordButton'),
             backButton: document.getElementById('backButton'),
-            selectedCategoryText: document.getElementById('selectedCategory'),
-            chatSummary: document.getElementById('chatSummary'),
-            summaryContent: document.getElementById('summaryContent'),
-            resetButton: document.getElementById('resetButton'),
-            endSessionButton: document.getElementById('endSessionButton'),
+            voiceModel: document.getElementById('voiceModel'),
             historyButton: document.getElementById('historyButton'),
+            resetButton: document.getElementById('resetButton'),
+            exportButton: document.getElementById('exportButton'),
+            endSessionButton: document.getElementById('endSessionButton'),
+            chatSummary: document.getElementById('chatSummary'),
             closeSummaryButton: document.getElementById('closeSummaryButton'),
-            exportButton: document.getElementById('exportButton')
+            summaryContent: document.getElementById('summaryContent')
         };
 
-        // Verify all required elements exist
+        // Validate required elements
         Object.entries(this.elements).forEach(([key, element]) => {
             if (!element) {
                 console.error(`Required element not found: ${key}`);
@@ -57,91 +59,143 @@ class ChatInterface {
     }
 
     setupEventListeners() {
-        // Record button events with loading states
-        if (this.elements.recordButton) {
-            this.elements.recordButton.addEventListener('mousedown', async () => {
-                if (!this.isProcessing) {
-                    await this.startRecording();
+        try {
+            // Category card click handlers with error handling
+            const categoryCards = document.querySelectorAll('.category-card');
+            categoryCards.forEach(card => {
+                card.addEventListener('click', (e) => {
+                    try {
+                        const category = card.dataset.category;
+                        this.selectCategory(category);
+                    } catch (error) {
+                        console.error('[ChatInterface] Error handling category selection:', error);
+                        this.showError('Failed to select category. Please try again.');
+                    }
+                });
+            });
+
+            // Record button handler with enhanced error handling
+            this.elements.recordButton.addEventListener('click', async () => {
+                try {
+                    if (this.isProcessing) {
+                        console.log('[ChatInterface] Processing in progress, ignoring click');
+                        return;
+                    }
+
+                    if (this.audioHandler.isRecording) {
+                        await this.stopRecording();
+                    } else {
+                        await this.startRecording();
+                    }
+                } catch (error) {
+                    console.error('[ChatInterface] Error handling record button click:', error);
+                    this.showError('Recording failed. Please check your microphone and try again.');
                 }
             });
-            
-            this.elements.recordButton.addEventListener('mouseup', async () => {
-                if (this.audioHandler.isRecording) {
-                    await this.stopRecording();
+
+            // Navigation button handlers
+            this.elements.backButton.addEventListener('click', () => {
+                try {
+                    this.resetChat();
+                    this.showCategorySelection();
+                } catch (error) {
+                    console.error('[ChatInterface] Error handling back button:', error);
+                    this.showError('Failed to return to categories. Please refresh the page.');
                 }
             });
-            
-            this.elements.recordButton.addEventListener('mouseleave', async () => {
-                if (this.audioHandler.isRecording) {
-                    await this.stopRecording();
+
+            // History button handler
+            this.elements.historyButton.addEventListener('click', () => {
+                try {
+                    this.toggleChatSummary();
+                } catch (error) {
+                    console.error('[ChatInterface] Error toggling chat summary:', error);
+                    this.showError('Failed to show chat history. Please try again.');
                 }
             });
+
+            // Reset button handler
+            this.elements.resetButton.addEventListener('click', async () => {
+                try {
+                    await this.resetChat(true);
+                } catch (error) {
+                    console.error('[ChatInterface] Error resetting chat:', error);
+                    this.showError('Failed to reset chat. Please try again.');
+                }
+            });
+
+            // Export button handler
+            this.elements.exportButton.addEventListener('click', () => {
+                try {
+                    this.exportChat();
+                } catch (error) {
+                    console.error('[ChatInterface] Error exporting chat:', error);
+                    this.showError('Failed to export chat. Please try again.');
+                }
+            });
+
+            // Close summary button handler
+            this.elements.closeSummaryButton.addEventListener('click', () => {
+                try {
+                    this.elements.chatSummary.classList.add('d-none');
+                } catch (error) {
+                    console.error('[ChatInterface] Error closing summary:', error);
+                    this.showError('Failed to close summary. Please try again.');
+                }
+            });
+
+            // End session button handler
+            this.elements.endSessionButton.addEventListener('click', () => {
+                try {
+                    this.endSession();
+                } catch (error) {
+                    console.error('[ChatInterface] Error ending session:', error);
+                    this.showError('Failed to end session. Please try again.');
+                }
+            });
+
+        } catch (error) {
+            console.error('[ChatInterface] Error setting up event listeners:', error);
+            this.showError('Failed to initialize interface. Please refresh the page.');
+            throw error;
         }
-
-        // Category card click events with improved event handling
-        const categoryCards = document.querySelectorAll('.category-card');
-        categoryCards.forEach(card => {
-            card.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const category = e.currentTarget.dataset.category;
-                if (category) {
-                    this.categorySelected(category);
-                }
-            }, { passive: false });
-            
-            // Add touch event handling for mobile devices
-            card.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                const category = e.currentTarget.dataset.category;
-                if (category) {
-                    this.categorySelected(category);
-                }
-            }, { passive: false });
-        });
-
-        // Setup other button listeners with null checks
-        this.setupButtonListeners();
     }
 
-    setupButtonListeners() {
-        const { backButton, resetButton, endSessionButton, historyButton, closeSummaryButton } = this.elements;
+    selectCategory(category) {
+        this.currentCategory = category;
+        this.elements.selectedCategory.textContent = this.getCategoryTitle(category);
+        this.elements.categoryHeader.classList.add('d-none');
+        this.elements.categoryGrid.classList.add('d-none');
+        this.elements.chatInterface.classList.remove('d-none');
+    }
 
-        if (backButton) {
-            backButton.addEventListener('click', () => this.showCategorySelection());
-        }
+    getCategoryTitle(category) {
+        const titles = {
+            'personality': 'Personality Development',
+            'soft_skills': 'Soft Skills Improvement',
+            'communication': 'Communication Techniques',
+            'interview': 'Interview Preparation'
+        };
+        return titles[category] || 'Chat';
+    }
 
-        if (resetButton) {
-            resetButton.addEventListener('click', () => this.resetSession());
-        }
-
-        if (endSessionButton) {
-            endSessionButton.addEventListener('click', () => {
-                this.resetSession();
-                this.showCategorySelection();
-            });
-        }
-
-        if (historyButton) {
-            historyButton.addEventListener('click', () => this.showChatSummary());
-        }
-
-        if (closeSummaryButton) {
-            closeSummaryButton.addEventListener('click', () => this.hideChatSummary());
-        }
-
-        if (this.elements.exportButton) {
-            this.elements.exportButton.addEventListener('click', () => this.exportChat());
-        }
+    showCategorySelection() {
+        this.elements.categoryHeader.classList.remove('d-none');
+        this.elements.categoryGrid.classList.remove('d-none');
+        this.elements.chatInterface.classList.add('d-none');
+        this.elements.chatSummary.classList.add('d-none');
     }
 
     async startRecording() {
         try {
-            this.setLoadingState(true, 'recording');
+            this.updateStageProgress('recording');
             await this.audioHandler.startRecording();
             this.elements.recordButton.classList.add('recording');
+            this.elements.recordButton.querySelector('i').className = 'fas fa-stop';
         } catch (error) {
-            this.showError(error.message);
+            console.error('[ChatInterface] Failed to start recording:', error);
+            this.showError(error.message || 'Failed to start recording. Please try again.');
+            this.setLoadingState(false);
         }
     }
 
@@ -149,11 +203,12 @@ class ChatInterface {
         try {
             const audioBlob = await this.audioHandler.stopRecording();
             this.elements.recordButton.classList.remove('recording');
+            this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
             await this.processAudio(audioBlob);
         } catch (error) {
-            this.showError(error.message);
-        } finally {
-            this.setLoadingState(false, 'recording');
+            console.error('[ChatInterface] Failed to stop recording:', error);
+            this.showError(error.message || 'Failed to process recording. Please try again.');
+            this.setLoadingState(false);
         }
     }
 
@@ -193,7 +248,7 @@ class ChatInterface {
         }
 
         this.setLoadingState(true, 'processing');
-        this.this.updateProcessingStage('transcribing');
+        this.updateStageProgress('transcribing');
         console.log(`[ChatInterface] Processing started at: ${new Date(processingStart).toISOString()}`);
         
         try {
@@ -203,306 +258,166 @@ class ChatInterface {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.wav');
             formData.append('category', this.currentCategory);
-            const voiceModel = document.getElementById('voiceModel').value;
-            formData.append('voice_model', voiceModel);
+            formData.append('voice_model', this.elements.voiceModel.value);
 
-            // Update status for API request
-            this.updateLoadingStatus('Sending audio for processing...');
-            console.log('[ChatInterface] Preparing fetch request...');
-            const requestStart = Date.now();
-            
             const response = await fetch('/process-audio', {
                 method: 'POST',
                 body: formData
             });
-            
-            console.log(`[ChatInterface] Fetch response received in ${Date.now() - requestStart}ms:`, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: Object.fromEntries(response.headers.entries())
-            });
 
-            // Handle non-JSON responses
-            let data;
-            try {
-                data = await response.json();
-            } catch (e) {
-                throw new Error('Invalid response from server: Failed to parse JSON');
-            }
-            
             if (!response.ok) {
-                const errorMessage = data.error || 'Failed to process audio';
-                const requestId = data.request_id ? ` (Request ID: ${data.request_id})` : '';
-                throw new Error(`${errorMessage}${requestId}`);
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to process audio');
             }
 
-            // Show processing time if available
-            if (data.processing_time) {
-                console.log(`Server processing time: ${data.processing_time.toFixed(2)}s`);
-            }
+            const data = await response.json();
+            this.updateStageProgress('processing');
 
-            // Update status for each step
-            this.updateLoadingStatus('Updating chat window...');
-            this.updateChatWindow(data.text, data.response);
-            
-            this.updateLoadingStatus('Playing audio response...');
+            // Add messages to chat
+            this.addMessage(data.text, 'user');
+            this.addMessage(data.response, 'bot');
+
+            // Play audio response
             await this.audioHandler.playAudio(data.audio);
-            
-            // Show success message with timing
-            const totalTime = ((Date.now() - processingStart) / 1000).toFixed(2);
-            this.updateLoadingStatus(`Processing completed in ${totalTime}s`);
-            setTimeout(() => this.updateLoadingStatus(''), 3000);
-            
+
+            console.log(`[ChatInterface] Processing completed in ${Date.now() - processingStart}ms`);
         } catch (error) {
-            console.error('Audio processing error:', error);
-            this.showError(error.message);
-            // Show detailed error status
-            this.updateLoadingStatus('Processing failed - please try again');
+            console.error('[ChatInterface] Error processing audio:', error);
+            this.showError(error.message || 'Failed to process audio. Please try again.');
         } finally {
-            this.setLoadingState(false, 'processing');
-        }
-    }
-
-    setLoadingState(isLoading, state = 'processing') {
-        this.isProcessing = isLoading;
-        
-        if (this.elements.recordButton) {
-            this.elements.recordButton.disabled = isLoading;
-            
-            // Update button text/icon based on state
-            const icon = this.elements.recordButton.querySelector('i');
-            if (icon) {
-                if (isLoading) {
-                    // Add pulsing effect for recording state
-                    if (state === 'recording') {
-                        icon.className = 'fas fa-microphone-slash fa-beat';
-                        this.elements.recordButton.classList.add('btn-danger');
-                    } else {
-                        // Add spinning loader for processing state
-                        icon.className = 'fas fa-spinner fa-spin-pulse fa-spin';
-                        this.elements.recordButton.classList.add('btn-warning');
-                    }
-                } else {
-                    icon.className = 'fas fa-microphone';
-                    this.elements.recordButton.classList.remove('btn-danger', 'btn-warning');
-                }
+            this.setLoadingState(false);
+            const progressElement = document.getElementById('processingProgress');
+            if (progressElement) {
+                progressElement.remove();
             }
-            
-            // Add loading indicator text
-            const loadingText = state === 'recording' ? 'Recording...' : 'Processing...';
-            this.updateLoadingStatus(isLoading ? loadingText : '');
-        }
-
-        // Add visual feedback for processing state
-        if (this.elements.chatInterface) {
-            this.elements.chatInterface.classList.toggle('processing', isLoading);
         }
     }
 
-    categorySelected(category) {
-        if (!category) return;
+    addMessage(text, sender) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${sender}-message`;
         
-        this.currentCategory = category;
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.textContent = text;
         
-        const categoryTitles = {
-            'personality': 'Personality Development',
-            'soft_skills': 'Soft Skills Improvement',
-            'communication': 'Communication Techniques',
-            'interview': 'Interview Preparation'
-        };
-        
-        if (this.elements.selectedCategoryText) {
-            this.elements.selectedCategoryText.textContent = categoryTitles[category] || category;
-        }
-        
-        // Hide category header and show chat interface
-        const categoryHeader = document.getElementById('categoryHeader');
-        if (categoryHeader) {
-            categoryHeader.classList.add('d-none');
-        }
-        
-        if (this.elements.categoryGrid && this.elements.chatInterface) {
-            this.elements.categoryGrid.classList.add('d-none');
-            this.elements.chatInterface.classList.remove('d-none');
-        }
-    }
-
-    showCategorySelection() {
-        // Show category header when returning to selection
-        const categoryHeader = document.getElementById('categoryHeader');
-        if (categoryHeader) {
-            categoryHeader.classList.remove('d-none');
-        }
-
-        if (this.elements.categoryGrid && this.elements.chatInterface) {
-            this.elements.categoryGrid.classList.remove('d-none');
-            this.elements.chatInterface.classList.add('d-none');
-        }
-        this.currentCategory = '';
-    }
-
-    updateChatWindow(userText, botResponse) {
-        if (!this.elements.chatWindow) return;
-
-        const timestamp = new Date().toLocaleString();
-        
-        this.messageHistory.push({
-            type: 'user',
-            text: userText,
-            timestamp: new Date()
-        });
-        this.messageHistory.push({
-            type: 'bot',
-            text: botResponse,
-            timestamp: new Date()
-        });
-
-        const messageHtml = this.createMessageHTML(userText, botResponse, timestamp);
-        this.elements.chatWindow.insertAdjacentHTML('beforeend', messageHtml);
+        messageDiv.appendChild(contentDiv);
+        this.elements.chatWindow.appendChild(messageDiv);
         this.elements.chatWindow.scrollTop = this.elements.chatWindow.scrollHeight;
         
-        this.setupMessageToggles();
+        // Update message history
+        this.messageHistory.push({ sender, text });
     }
 
-    createMessageHTML(userText, botResponse, timestamp) {
-        return `
-            <div class="message user-message">
-                <div class="message-content">
-                    <span class="timestamp">${this.escapeHtml(timestamp)}</span>
-                    ${this.escapeHtml(userText)}
-                    <i class="fas fa-file-alt message-toggle" title="Show/Hide Transcript"></i>
-                </div>
-                <div class="message-transcript">${this.escapeHtml(userText)}</div>
-            </div>
-            <div class="message bot-message">
-                <div class="message-content">
-                    <span class="timestamp">${this.escapeHtml(timestamp)}</span>
-                    ${this.escapeHtml(botResponse)}
-                    <i class="fas fa-file-alt message-toggle" title="Show/Hide Transcript"></i>
-                </div>
-                <div class="message-transcript">${this.escapeHtml(botResponse)}</div>
-            </div>
-        `;
+    async resetChat(clearServer = false) {
+        try {
+            this.messageHistory = [];
+            this.elements.chatWindow.innerHTML = '';
+            
+            if (clearServer) {
+                const response = await fetch('/reset-session', {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to reset server session');
+                }
+            }
+        } catch (error) {
+            console.error('[ChatInterface] Error resetting chat:', error);
+            this.showError('Failed to reset chat. Please try again.');
+        }
     }
 
-    setupMessageToggles() {
-        const toggles = this.elements.chatWindow.querySelectorAll('.message-toggle');
-        toggles.forEach(toggle => {
-            toggle.addEventListener('click', (e) => {
-                const transcript = e.target.closest('.message-content').nextElementSibling;
-                transcript.classList.toggle('show');
-            });
-        });
+    toggleChatSummary() {
+        const summaryVisible = !this.elements.chatSummary.classList.contains('d-none');
+        
+        if (summaryVisible) {
+            this.elements.chatSummary.classList.add('d-none');
+        } else {
+            this.updateChatSummary();
+            this.elements.chatSummary.classList.remove('d-none');
+        }
     }
 
-    showChatSummary() {
-        if (!this.elements.summaryContent || !this.elements.chatSummary) return;
-
+    updateChatSummary() {
         this.elements.summaryContent.innerHTML = '';
         
         this.messageHistory.forEach(message => {
-            const timestamp = message.timestamp.toLocaleString();
-            const messageHtml = `
-                <div class="summary-message ${message.type}-message">
-                    <div class="timestamp">${this.escapeHtml(timestamp)}</div>
-                    <div class="content">${this.escapeHtml(message.text)}</div>
-                </div>
-            `;
-            this.elements.summaryContent.innerHTML += messageHtml;
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `summary-message ${message.sender}-message`;
+            
+            const timestamp = document.createElement('div');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString();
+            
+            const content = document.createElement('div');
+            content.textContent = message.text;
+            
+            messageDiv.appendChild(timestamp);
+            messageDiv.appendChild(content);
+            this.elements.summaryContent.appendChild(messageDiv);
         });
+    }
+
+    exportChat() {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `chat-export-${timestamp}.txt`;
         
-        this.elements.chatSummary.classList.remove('d-none');
+        const content = this.messageHistory.map(message => 
+            `[${message.sender.toUpperCase()}] ${message.text}`
+        ).join('\n\n');
+        
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        
+        URL.revokeObjectURL(url);
     }
 
-    hideChatSummary() {
-        if (this.elements.chatSummary) {
-            this.elements.chatSummary.classList.add('d-none');
-        }
+    endSession() {
+        this.resetChat(true);
+        this.showCategorySelection();
     }
 
-    async resetSession() {
-        try {
-            const response = await fetch('/reset-session', { method: 'POST' });
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to reset session');
+    setLoadingState(loading, message = '') {
+        this.isProcessing = loading;
+        this.elements.recordButton.disabled = loading;
+        if (loading) {
+            this.elements.recordButton.classList.add('processing');
+            if (message) {
+                this.updateLoadingStatus(message);
             }
-            
-            if (this.elements.chatWindow) {
-                this.elements.chatWindow.innerHTML = '';
-            }
-            this.messageHistory = [];
-        } catch (error) {
-            this.showError(error.message);
-        }
-    }
-
-    async exportChat() {
-        if (this.messageHistory.length === 0) {
-            this.showError('No conversation to export');
-            return;
-        }
-
-        try {
-            // Format the chat history
-            const exportData = {
-                category: this.currentCategory,
-                timestamp: new Date().toISOString(),
-                messages: this.messageHistory.map(msg => ({
-                    type: msg.type,
-                    text: msg.text,
-                    timestamp: msg.timestamp.toISOString()
-                }))
-            };
-
-            // Create text version
-            let textContent = `Chat Export - ${exportData.category}\n`;
-            textContent += `Generated: ${new Date().toLocaleString()}\n\n`;
-            exportData.messages.forEach(msg => {
-                textContent += `[${new Date(msg.timestamp).toLocaleString()}] ${msg.type.toUpperCase()}: ${msg.text}\n`;
-            });
-
-            // Create Blob with text content
-            const blob = new Blob([textContent], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            
-            // Create download link
-            const a = document.createElement('a');
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            a.href = url;
-            a.download = `chat-export-${timestamp}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            
-            // Cleanup
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        } catch (error) {
-            this.showError('Failed to export chat: ' + error.message);
+        } else {
+            this.elements.recordButton.classList.remove('processing');
+            this.updateLoadingStatus('');
         }
     }
 
     showError(message) {
-        if (!this.elements.chatWindow) return;
-
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
-        errorDiv.innerHTML = `
-            ${this.escapeHtml(message)}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        this.elements.chatWindow.appendChild(errorDiv);
+        console.error('[ChatInterface] Error:', message);
+        // Create or update error message element
+        let errorElement = document.getElementById('errorMessage');
+        if (!errorElement) {
+            errorElement = document.createElement('div');
+            errorElement.id = 'errorMessage';
+            errorElement.className = 'alert alert-danger mt-2';
+            this.elements.recordButton.parentNode.appendChild(errorElement);
+        }
+        errorElement.textContent = message;
         
-        // Auto-dismiss after 5 seconds
+        // Auto-hide error after 5 seconds
         setTimeout(() => {
-            if (errorDiv.parentNode === this.elements.chatWindow) {
-                errorDiv.remove();
+            if (errorElement.parentNode) {
+                errorElement.parentNode.removeChild(errorElement);
             }
         }, 5000);
     }
 
-    updateLoadingStatus(message) {
     updateStageProgress(stage) {
         const stages = {
             recording: 'Recording your message...',
@@ -514,18 +429,18 @@ class ChatInterface {
         this.updateLoadingStatus(stages[stage] || '');
         
         // Update visual progress indicator
-        const progressElement = document.getElementById('processingProgress');
+        let progressElement = document.getElementById('processingProgress');
         if (!progressElement) {
-            const progress = document.createElement('div');
-            progress.id = 'processingProgress';
-            progress.className = 'progress mt-2';
-            progress.style.height = '2px';
-            progress.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>';
-            this.elements.recordButton.parentNode.appendChild(progress);
+            progressElement = document.createElement('div');
+            progressElement.id = 'processingProgress';
+            progressElement.className = 'progress mt-2';
+            progressElement.style.height = '2px';
+            progressElement.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>';
+            this.elements.recordButton.parentNode.appendChild(progressElement);
         }
 
         // Update progress bar based on stage
-        const progressBar = document.querySelector('#processingProgress .progress-bar');
+        const progressBar = progressElement.querySelector('.progress-bar');
         if (progressBar) {
             const stageProgress = {
                 recording: 25,
@@ -537,6 +452,7 @@ class ChatInterface {
         }
     }
 
+    updateLoadingStatus(message) {
         let statusElement = document.getElementById('processingStatus');
         if (!statusElement) {
             statusElement = document.createElement('div');
