@@ -189,7 +189,25 @@ class ChatInterface {
     async startRecording() {
         try {
             this.updateStageProgress('recording');
-            await this.audioHandler.startRecording();
+            const continuousMode = document.getElementById('continuousMode').checked;
+            
+            // Set up speech end callback for continuous mode
+            if (continuousMode) {
+                this.audioHandler.setSpeechEndCallback(async () => {
+                    const audioBlob = await this.audioHandler.stopRecording();
+                    this.elements.recordButton.classList.remove('recording');
+                    this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
+                    if (audioBlob) {
+                        await this.processAudio(audioBlob);
+                        // Automatically start recording again after processing
+                        if (document.getElementById('continuousMode').checked) {
+                            setTimeout(() => this.startRecording(), 1000);
+                        }
+                    }
+                });
+            }
+            
+            await this.audioHandler.startRecording(continuousMode);
             this.elements.recordButton.classList.add('recording');
             this.elements.recordButton.querySelector('i').className = 'fas fa-stop';
         } catch (error) {

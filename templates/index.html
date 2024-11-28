@@ -68,9 +68,15 @@
                                     <option value="default">Default Voice</option>
                                     <option value="openai">OpenAI Voice</option>
                                 </select>
-                                <button id="recordButton" class="btn btn-primary record-button" title="Record">
-                                    <i class="fas fa-microphone"></i>
-                                </button>
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check form-switch me-2">
+                                        <input class="form-check-input" type="checkbox" id="continuousMode">
+                                        <label class="form-check-label" for="continuousMode">Continuous</label>
+                                    </div>
+                                    <button id="recordButton" class="btn btn-primary record-button" title="Record">
+                                        <i class="fas fa-microphone"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="col-auto d-flex align-items-center">
