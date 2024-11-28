@@ -20,7 +20,7 @@
                 voiceModel: document.getElementById('voiceModel'),
                 historyButton: document.getElementById('historyButton'),
                 resetButton: document.getElementById('resetButton'),
-                
+                exportButton: document.getElementById('exportButton'),
                 endSessionButton: document.getElementById('endSessionButton'),
                 chatSummary: document.getElementById('chatSummary'),
                 closeSummaryButton: document.getElementById('closeSummaryButton'),
@@ -124,7 +124,15 @@
                     }
                 });
     
-                
+                // Export button handler
+                this.elements.exportButton.addEventListener('click', () => {
+                    try {
+                        this.exportChat();
+                    } catch (error) {
+                        console.error('[ChatInterface] Error exporting chat:', error);
+                        this.showError('Failed to export chat. Please try again.');
+                    }
+                });
     
                 // Close summary button handler
                 this.elements.closeSummaryButton.addEventListener('click', () => {
@@ -181,49 +189,58 @@
         async startRecording() {
             try {
                 this.updateStageProgress('recording');
-                console.log('[ChatInterface] Starting recording in continuous mode');
+                const continuousMode = document.getElementById('continuousMode').checked;
+                console.log(`[ChatInterface] Starting recording in ${continuousMode ? 'continuous' : 'single'} mode`);
     
-                // Set up speech end callback for continuous mode
-                this.audioHandler.setSpeechEndCallback(async (audioBlob) => {
-                    try {
-                        console.log('[ChatInterface] Speech chunk detected, processing audio...');
-
-                        if (audioBlob && audioBlob.size > 0) {
-                            // Process audio without stopping recording
-                            await this.processAudio(audioBlob, true);
+                if (continuousMode) {
+                    // Set up speech end callback for continuous mode
+                    this.audioHandler.setSpeechEndCallback(async (audioBlob) => {
+                        try {
+                            console.log('[ChatInterface] Speech chunk detected, processing audio...');
+    
+                            if (audioBlob && audioBlob.size > 0) {
+                                // Process audio without stopping recording
+                                await this.processAudio(audioBlob, true);
+                            }
+                        } catch (error) {
+                            console.error('[ChatInterface] Error in continuous mode callback:', error);
+                            this.showError('Error processing voice input. Attempting to continue...');
                         }
-                    } catch (error) {
-                        console.error('[ChatInterface] Error in continuous mode callback:', error);
-                        this.showError('Error processing voice input. Attempting to continue...');
-                    }
-                });
-
-                // Set up bot response end callback
-                this.audioHandler.setBotResponseEndCallback(() => {
-                    try {
+                    });
+    
+                    // Set up bot response end callback
+                    this.audioHandler.setBotResponseEndCallback(() => {
                         console.log('[ChatInterface] Bot response ended, ready for next input');
                         this.setLoadingState(false);
                         this.updateStageProgress('recording');
-                    } catch (error) {
-                        console.error('[ChatInterface] Error in bot response callback:', error);
-                        this.showError('Error handling bot response. Please try again.');
-                    }
-                });
+                    });
+                }
     
-                await this.audioHandler.startRecording(true);  // Always use continuous mode
+                await this.audioHandler.startRecording(continuousMode);
                 this.elements.recordButton.classList.add('recording');
                 this.elements.recordButton.querySelector('i').className = 'fas fa-stop';
-                this.showInfo('Voice chat active. Speaking will be automatically detected.');
+    
+                if (continuousMode) {
+                    this.showInfo('Continuous mode active. Speaking will be automatically detected.');
+                }
             } catch (error) {
                 console.error('[ChatInterface] Failed to start recording:', error);
                 this.showError(error.message || 'Failed to start recording. Please try again.');
+                document.getElementById('continuousMode').checked = false;
                 this.setLoadingState(false);
             }
         }
-
         async stopRecording() {
             try {
                 console.log('[ChatInterface] Stopping recording...');
+                const wasContinuous = document.getElementById('continuousMode').checked;
+                
+                // Disable continuous mode before stopping
+                if (wasContinuous) {
+                    console.log('[ChatInterface] Disabling continuous mode before stopping');
+                    document.getElementById('continuousMode').checked = false;
+                }
+                
                 const audioBlob = await this.audioHandler.stopRecording();
                 this.elements.recordButton.classList.remove('recording');
                 this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
@@ -400,7 +417,24 @@
             });
         }
     
-        
+        exportChat() {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `chat-export-${timestamp}.txt`;
+            
+            const content = this.messageHistory.map(message => 
+                `[${message.sender.toUpperCase()}] ${message.text}`
+            ).join('\n\n');
+            
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.click();
+            
+            URL.revokeObjectURL(url);
+        }
     
         endSession() {
             this.resetChat(true);
