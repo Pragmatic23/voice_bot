@@ -65,7 +65,28 @@ class AudioHandler {
             this.mediaRecorder = new MediaRecorder(this.stream, options);
             this.audioChunks = [];
             
-            this.mediaRecorder.ondataavailable = (event) => {
+            // Initialize WebSocket connection
+            this.socket = io();
+            this.socket.on('connect', () => {
+                console.log('[AudioHandler] WebSocket connected');
+            });
+
+            this.socket.on('transcription', (data) => {
+                console.log('[AudioHandler] Received transcription:', data);
+                if (this.onTranscriptionReceived) {
+                    this.onTranscriptionReceived(data);
+                }
+            });
+
+            this.socket.on('error', (error) => {
+                console.error('[AudioHandler] WebSocket error:', error);
+                if (this.onError) {
+                    this.onError(error);
+                }
+            });
+
+            // Handle audio chunks in real-time
+            this.mediaRecorder.ondataavailable = async (event) => {
                 if (event.data.size > 0) {
                     const chunkSize = event.data.size;
                     console.log(`[AudioHandler] Audio chunk received: ${chunkSize} bytes`);
@@ -83,7 +104,28 @@ class AudioHandler {
                     
                     const totalSize = this.audioChunks.reduce((acc, chunk) => acc + chunk.size, 0) + chunkSize;
                     console.log(`[AudioHandler] Total recording size: ${totalSize} bytes`);
+                    
+                    // Store chunk locally and send via WebSocket
                     this.audioChunks.push(event.data);
+                    
+                    try {
+                        // Convert chunk to base64 and send via WebSocket
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const base64Audio = reader.result.split(',')[1];
+                            this.socket.emit('audio_chunk', {
+                                audio: base64Audio,
+                                timestamp: Date.now(),
+                                isLastChunk: false
+                            });
+                        };
+                        reader.readAsDataURL(event.data);
+                    } catch (error) {
+                        console.error('[AudioHandler] Error sending audio chunk:', error);
+                        if (this.onError) {
+                            this.onError('Failed to send audio chunk: ' + error.message);
+                        }
+                    }
                 }
             };
 
