@@ -80,8 +80,43 @@ async def process_audio(audio_file, api_key):
     logger.info("Starting audio processing", extra={'request_id': request_id})
     
     try:
+        # Convert WebM to WAV if needed
+        if audio_file.content_type.startswith('audio/webm'):
+            import subprocess
+            import os
+            
+            logger.info("Converting WebM to WAV format", extra={'request_id': request_id})
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_webm:
+                audio_file.save(temp_webm.name)
+                wav_path = temp_webm.name.replace('.webm', '.wav')
+                
+                try:
+                    subprocess.run([
+                        'ffmpeg', '-i', temp_webm.name,
+                        '-acodec', 'pcm_s16le',
+                        '-ar', '16000',
+                        '-ac', '1',
+                        '-y', wav_path
+                    ], check=True, capture_output=True)
+                    
+                    logger.info("Successfully converted WebM to WAV", extra={'request_id': request_id})
+                    audio_file = open(wav_path, 'rb')
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"FFmpeg conversion failed: {e.stderr.decode()}", 
+                               extra={'request_id': request_id})
+                    raise Exception("Audio conversion failed")
+                finally:
+                    # Clean up temporary files
+                    try:
+                        os.unlink(temp_webm.name)
+                        if os.path.exists(wav_path):
+                            os.unlink(wav_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to cleanup temp files: {str(e)}", 
+                                     extra={'request_id': request_id})
+        
         # Detailed request logging
-        logger.info(f"Audio file details - Size: {audio_file.content_length} bytes, Type: {audio_file.content_type}",
+        logger.info(f"Audio file details - Size: {os.path.getsize(audio_file.name) if hasattr(audio_file, 'name') else 'unknown'} bytes",
                    extra={'request_id': request_id})
         
         # Validate audio format with enhanced logging
