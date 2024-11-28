@@ -24,7 +24,7 @@ class AudioHandler {
             
             // Request microphone access with specific constraints
             console.log('[AudioHandler] Requesting microphone access with quality settings...');
-            this.stream = await navigator.mediaDevices.getUserMedia({
+            const constraints = {
                 audio: {
                     sampleRate: this.sampleRate,
                     channelCount: this.channelCount,
@@ -32,8 +32,23 @@ class AudioHandler {
                     noiseSuppression: true,
                     autoGainControl: true
                 }
+            };
+            console.log('[AudioHandler] Audio constraints:', JSON.stringify(constraints.audio));
+            
+            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            const audioTracks = this.stream.getAudioTracks();
+            console.log(`[AudioHandler] Microphone access granted with ${audioTracks.length} audio tracks`);
+            audioTracks.forEach(track => {
+                const settings = track.getSettings();
+                console.log('[AudioHandler] Track settings:', {
+                    deviceId: settings.deviceId,
+                    sampleRate: settings.sampleRate,
+                    channelCount: settings.channelCount,
+                    autoGainControl: settings.autoGainControl,
+                    echoCancellation: settings.echoCancellation,
+                    noiseSuppression: settings.noiseSuppression
+                });
             });
-            console.log('[AudioHandler] Microphone access granted with specified constraints');
             
             // Create and configure MediaRecorder with enhanced settings
             console.log('[AudioHandler] Configuring MediaRecorder with optimal settings...');
@@ -52,13 +67,23 @@ class AudioHandler {
             
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
-                    if (event.data.size > this.maxAudioSize) {
-                        console.warn('[AudioHandler] Audio chunk exceeds maximum size limit');
+                    const chunkSize = event.data.size;
+                    console.log(`[AudioHandler] Audio chunk received: ${chunkSize} bytes`);
+                    
+                    // Detailed chunk validation
+                    if (chunkSize > this.maxAudioSize) {
+                        console.error(`[AudioHandler] Audio chunk size (${chunkSize} bytes) exceeds maximum limit of ${this.maxAudioSize} bytes`);
                         this.cleanup();
                         throw new Error('Recording too large. Please keep your message shorter.');
                     }
+                    
+                    if (chunkSize < 1000) {
+                        console.warn(`[AudioHandler] Small audio chunk detected: ${chunkSize} bytes`);
+                    }
+                    
+                    const totalSize = this.audioChunks.reduce((acc, chunk) => acc + chunk.size, 0) + chunkSize;
+                    console.log(`[AudioHandler] Total recording size: ${totalSize} bytes`);
                     this.audioChunks.push(event.data);
-                    console.log(`[AudioHandler] Audio chunk received: ${event.data.size} bytes`);
                 }
             };
 

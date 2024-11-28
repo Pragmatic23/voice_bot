@@ -139,13 +139,29 @@ class ChatInterface {
     }
 
     async processAudio(audioBlob) {
+        console.log('[ChatInterface] Starting audio processing...');
         if (!audioBlob) {
+            console.error('[ChatInterface] No audio blob provided');
             this.showError('No audio data available to process');
+            return;
+        }
+
+        // Validate audio blob
+        console.log(`[ChatInterface] Audio blob details:`, {
+            size: audioBlob.size,
+            type: audioBlob.type,
+            lastModified: audioBlob.lastModified
+        });
+
+        if (audioBlob.size === 0) {
+            console.error('[ChatInterface] Empty audio blob received');
+            this.showError('Empty audio recording detected');
             return;
         }
 
         this.setLoadingState(true, 'processing');
         const processingStart = Date.now();
+        console.log(`[ChatInterface] Processing started at: ${new Date(processingStart).toISOString()}`);
         
         try {
             // Update status for audio preparation
@@ -158,9 +174,18 @@ class ChatInterface {
 
             // Update status for API request
             this.updateLoadingStatus('Sending audio for processing...');
+            console.log('[ChatInterface] Preparing fetch request...');
+            const requestStart = Date.now();
+            
             const response = await fetch('/process-audio', {
                 method: 'POST',
                 body: formData
+            });
+            
+            console.log(`[ChatInterface] Fetch response received in ${Date.now() - requestStart}ms:`, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries())
             });
 
             // Handle non-JSON responses
