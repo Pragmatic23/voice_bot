@@ -39,13 +39,36 @@ def retry_on_exception(retries=3, delay=1):
 
 def validate_audio_format(audio_file):
     """Validate and ensure proper audio format."""
-    allowed_types = {'audio/wav', 'audio/wave', 'audio/x-wav', 'audio/webm'}
+    allowed_base_types = {
+        'audio/wav': [''],
+        'audio/wave': [''],
+        'audio/x-wav': [''],
+        'audio/webm': ['opus']
+    }
     
     if not hasattr(audio_file, 'content_type'):
         raise ValueError("Invalid audio file: Missing content type")
-        
-    if audio_file.content_type not in allowed_types:
-        raise ValueError(f"Unsupported audio format: {audio_file.content_type}. Supported formats: WAV, WebM")
+    
+    # Parse content type and codec
+    content_parts = audio_file.content_type.split(';')
+    base_type = content_parts[0].strip()
+    codec = ''
+    
+    if len(content_parts) > 1:
+        codec_part = [p for p in content_parts[1:] if 'codecs=' in p]
+        if codec_part:
+            codec = codec_part[0].split('=')[1].strip('"')
+    
+    # Validate base type and codec
+    if base_type not in allowed_base_types:
+        supported_formats = [f"{t}{';codecs=' + c if c else ''}" 
+                           for t, codecs in allowed_base_types.items() 
+                           for c in codecs]
+        raise ValueError(f"Unsupported audio format: {audio_file.content_type}. "
+                        f"Supported formats: {', '.join(supported_formats)}")
+    
+    if codec and codec not in allowed_base_types[base_type]:
+        raise ValueError(f"Unsupported codec: {codec} for format {base_type}")
     
     return True
 

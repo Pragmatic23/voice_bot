@@ -82,12 +82,42 @@ def process_audio_route():
                         extra={'request_id': request_id})
             return jsonify({'error': 'File too large', 'request_id': request_id}), 400
             
-        # Validate content type
-        allowed_types = {'audio/wav', 'audio/wave', 'audio/webm', 'audio/x-wav'}
-        if content_type not in allowed_types:
-            logger.error(f"Invalid content type: {content_type}", extra={'request_id': request_id})
-            return jsonify({'error': f'Invalid audio format. Allowed types: {", ".join(allowed_types)}',
-                          'request_id': request_id}), 400
+        # Enhanced content type validation with codec support
+        allowed_types = {
+            'audio/wav': None,
+            'audio/wave': None,
+            'audio/x-wav': None,
+            'audio/webm': 'opus'
+        }
+        
+        # Parse content type and codec
+        content_parts = content_type.split(';')
+        base_type = content_parts[0].strip()
+        codec = None
+        
+        if len(content_parts) > 1:
+            codec_part = [p for p in content_parts[1:] if 'codecs=' in p]
+            if codec_part:
+                codec = codec_part[0].split('=')[1].strip('"')
+        
+        logger.info(f"Parsed content type - Base: {base_type}, Codec: {codec}",
+                   extra={'request_id': request_id})
+        
+        if base_type not in allowed_types:
+            logger.error(f"Invalid base content type: {base_type}",
+                        extra={'request_id': request_id})
+            return jsonify({
+                'error': f'Invalid audio format. Allowed types: {", ".join(allowed_types.keys())}',
+                'request_id': request_id
+            }), 400
+            
+        if codec and allowed_types[base_type] != codec:
+            logger.error(f"Invalid codec: {codec} for type {base_type}",
+                        extra={'request_id': request_id})
+            return jsonify({
+                'error': f'Invalid codec. Expected {allowed_types[base_type] or "none"} for {base_type}',
+                'request_id': request_id
+            }), 400
         
         # Enhanced request details logging
         category = request.form.get('category', 'general')
