@@ -9,8 +9,10 @@
 </head>
 <body>
     <div class="container py-4">
-        <h1 class="text-center mb-4">Educational AI Assistant</h1>
-        <p class="text-center mb-5">Choose a category to start learning and improving</p>
+        <div id="categoryHeader">
+            <h1 class="text-center mb-4">Educational AI Assistant</h1>
+            <p class="text-center mb-5">Choose a category to start learning and improving</p>
+        </div>
         
         <!-- Category Selection Grid -->
         <div id="categoryGrid" class="row g-4 mb-4">
@@ -58,22 +60,24 @@
             </div>
             <div id="chatWindow" class="chat-window"></div>
             <div class="controls">
-                <div class="row align-items-center">
-                    <div class="col-md-4 text-center">
-                        <button id="recordButton" class="btn btn-primary record-button" title="Record">
-                            <i class="fas fa-microphone"></i>
-                        </button>
-                    </div>
-                    <div class="col-md-8 text-end">
-                        <button id="historyButton" class="btn btn-outline-info me-2 btn-icon" title="Chat History">
-                            <i class="fas fa-history"></i>
-                        </button>
-                        <button id="resetButton" class="btn btn-outline-secondary me-2 btn-icon" title="Reset Chat">
-                            <i class="fas fa-undo"></i>
-                        </button>
-                        <button id="endSessionButton" class="btn btn-outline-danger btn-icon" title="End Session">
-                            <i class="fas fa-times"></i>
-                        </button>
+                <div class="container">
+                    <div class="row align-items-center justify-content-between">
+                        <div class="col-auto text-center">
+                            <button id="recordButton" class="btn btn-primary record-button" title="Record">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                        </div>
+                        <div class="col-auto d-flex align-items-center">
+                            <button id="historyButton" class="btn btn-outline-info btn-icon" title="Chat History">
+                                <i class="fas fa-history"></i>
+                            </button>
+                            <button id="resetButton" class="btn btn-outline-secondary btn-icon" title="Reset Chat">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                            <button id="endSessionButton" class="btn btn-outline-danger btn-icon" title="End Session">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

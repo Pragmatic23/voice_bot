@@ -206,6 +206,12 @@ class ChatInterface {
             this.elements.selectedCategoryText.textContent = categoryTitles[category] || category;
         }
         
+        // Hide category header and show chat interface
+        const categoryHeader = document.getElementById('categoryHeader');
+        if (categoryHeader) {
+            categoryHeader.classList.add('d-none');
+        }
+        
         if (this.elements.categoryGrid && this.elements.chatInterface) {
             this.elements.categoryGrid.classList.add('d-none');
             this.elements.chatInterface.classList.remove('d-none');
@@ -213,6 +219,12 @@ class ChatInterface {
     }
 
     showCategorySelection() {
+        // Show category header when returning to selection
+        const categoryHeader = document.getElementById('categoryHeader');
+        if (categoryHeader) {
+            categoryHeader.classList.remove('d-none');
+        }
+
         if (this.elements.categoryGrid && this.elements.chatInterface) {
             this.elements.categoryGrid.classList.remove('d-none');
             this.elements.chatInterface.classList.add('d-none');
