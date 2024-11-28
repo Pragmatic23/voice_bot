@@ -59,13 +59,26 @@ class ChatInterface {
             });
         }
 
-        // Category card click events
+        // Category card click events with improved event handling
         const categoryCards = document.querySelectorAll('.category-card');
         categoryCards.forEach(card => {
             card.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 const category = e.currentTarget.dataset.category;
-                this.categorySelected(category);
-            });
+                if (category) {
+                    this.categorySelected(category);
+                }
+            }, { passive: false });
+            
+            // Add touch event handling for mobile devices
+            card.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const category = e.currentTarget.dataset.category;
+                if (category) {
+                    this.categorySelected(category);
+                }
+            }, { passive: false });
         });
 
         // Setup other button listeners with null checks
