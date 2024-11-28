@@ -81,16 +81,46 @@ class AudioHandler {
     }
 
     async createMediaRecorder() {
-        if (!this.stream) {
-            throw new Error('No media stream available');
+        try {
+            // Validate stream state
+            if (!this.stream) {
+                console.error('[AudioHandler] Stream not available, attempting to create new stream');
+                const constraints = {
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: 48000,
+                        sampleSize: 16,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                };
+                this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            }
+
+            // Validate stream tracks
+            const audioTracks = this.stream.getAudioTracks();
+            if (!audioTracks || audioTracks.length === 0) {
+                throw new Error('No audio tracks available in the stream');
+            }
+
+            if (!audioTracks[0].enabled) {
+                console.log('[AudioHandler] Enabling audio track');
+                audioTracks[0].enabled = true;
+            }
+
+            // Create new MediaRecorder instance
+            this.mediaRecorder = new MediaRecorder(this.stream, {
+                mimeType: this.mimeType,
+                audioBitsPerSecond: 128000
+            });
+
+            this.setupRecordingHandlers();
+            console.log('[AudioHandler] MediaRecorder created successfully');
+        } catch (error) {
+            console.error('[AudioHandler] Error creating MediaRecorder:', error);
+            throw new Error(`Failed to create MediaRecorder: ${error.message}`);
         }
-
-        this.mediaRecorder = new MediaRecorder(this.stream, {
-            mimeType: this.mimeType,
-            audioBitsPerSecond: 128000
-        });
-
-        this.setupRecordingHandlers();
     }
 
         setupRecordingHandlers() {
@@ -215,6 +245,12 @@ class AudioHandler {
 
     async setupVoiceDetection() {
         try {
+            // Store stream reference and validate
+            if (!this.stream || this.stream.getAudioTracks().length === 0) {
+                throw new Error('Invalid audio stream');
+            }
+
+            // Create and configure audio context and analyzer
             const source = this.audioContext.createMediaStreamSource(this.stream);
             const analyser = this.audioContext.createAnalyser();
             analyser.fftSize = 2048;
@@ -223,8 +259,9 @@ class AudioHandler {
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Float32Array(bufferLength);
             
-            // Minimum chunk size in bytes (1KB)
-            const MIN_CHUNK_SIZE = 1024;
+            // Configuration constants
+            const MIN_CHUNK_SIZE = 1024; // Minimum chunk size in bytes (1KB)
+            const MIN_CHUNK_DURATION = 500; // Minimum chunk duration in ms
             let isVoiceDetected = false;
             let chunkStartTime = Date.now();
 
@@ -232,6 +269,12 @@ class AudioHandler {
                 if (!this.isRecording || !this.isContinuousMode) return;
 
                 try {
+                    // Validate stream state
+                    const audioTracks = this.stream.getAudioTracks();
+                    if (!audioTracks || audioTracks.length === 0 || !audioTracks[0].enabled) {
+                        throw new Error('Audio stream is not active');
+                    }
+
                     analyser.getFloatTimeDomainData(dataArray);
                     const rms = Math.sqrt(dataArray.reduce((acc, val) => acc + val * val, 0) / bufferLength);
                     const db = 20 * Math.log10(rms);
@@ -253,18 +296,23 @@ class AudioHandler {
                         try {
                             // Validate current chunk duration
                             const chunkDuration = Date.now() - chunkStartTime;
-                            if (chunkDuration < 500) { // Minimum 500ms
+                            if (chunkDuration < MIN_CHUNK_DURATION) {
                                 console.log('[AudioHandler] Chunk too short, skipping');
                                 return;
                             }
 
-                            // Stop current recording and get the chunk
+                            // Process current recording chunk
                             if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
                                 console.log('[AudioHandler] Processing voice chunk');
-                                this.mediaRecorder.requestData();
+                                
+                                // Store current MediaRecorder reference
+                                const currentRecorder = this.mediaRecorder;
+                                
+                                // Request data and stop current recorder
+                                currentRecorder.requestData();
                                 await new Promise(resolve => {
-                                    this.mediaRecorder.onstop = resolve;
-                                    this.mediaRecorder.stop();
+                                    currentRecorder.onstop = resolve;
+                                    currentRecorder.stop();
                                 });
 
                                 // Validate chunk size
@@ -275,15 +323,16 @@ class AudioHandler {
                                     return;
                                 }
 
-                                // Create new MediaRecorder for next chunk
-                                await this.cleanup();
+                                // Create new MediaRecorder while maintaining stream
+                                this.mediaRecorder = null;
                                 await this.createMediaRecorder();
                                 this.mediaRecorder.start(1000);
-                                console.log('[AudioHandler] New recording started');
+                                console.log('[AudioHandler] New recording started with existing stream');
                             }
                         } catch (error) {
                             console.error('[AudioHandler] Error processing voice chunk:', error);
-                            await this.cleanup();
+                            // Attempt recovery without full cleanup
+                            this.mediaRecorder = null;
                             await this.createMediaRecorder();
                             this.mediaRecorder.start(1000);
                         } finally {
@@ -292,6 +341,10 @@ class AudioHandler {
                     }
                 } catch (error) {
                     console.error('[AudioHandler] Error in voice detection:', error);
+                    // Attempt to recover the stream if needed
+                    if (!this.stream || this.stream.getAudioTracks().length === 0) {
+                        await this.createMediaRecorder();
+                    }
                 }
             };
 
@@ -328,25 +381,29 @@ class AudioHandler {
         }
     }
 
-    async cleanup() {
+    async cleanup(preserveStream = false) {
         if (this.voiceDetectionInterval) {
             clearInterval(this.voiceDetectionInterval);
             this.voiceDetectionInterval = null;
         }
 
-        if (this.stream) {
+        if (this.stream && !preserveStream) {
             this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
         }
 
-        if (this.audioContext && this.audioContext.state !== 'closed') {
+        if (this.audioContext && this.audioContext.state !== 'closed' && !preserveStream) {
             await this.audioContext.close();
+            this.audioContext = null;
         }
 
         this.mediaRecorder = null;
-        this.stream = null;
         this.chunks = [];
-        this.isRecording = false;
-        this.isWaitingForResponse = false;
+        
+        if (!preserveStream) {
+            this.isRecording = false;
+            this.isWaitingForResponse = false;
+        }
     }
 
     async playAudio(audioDataUrl) {
