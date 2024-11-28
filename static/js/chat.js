@@ -481,23 +481,6 @@ class ChatInterface {
     updateStageProgress(stage) {
         const stages = {
             recording: 'Recording your message...',
-    showInfo(message) {
-        let infoElement = document.getElementById('infoMessage');
-        if (!infoElement) {
-            infoElement = document.createElement('div');
-            infoElement.id = 'infoMessage';
-            infoElement.className = 'alert alert-info mt-2';
-            this.elements.recordButton.parentNode.appendChild(infoElement);
-        }
-        infoElement.textContent = message;
-        
-        setTimeout(() => {
-            if (infoElement.parentNode) {
-                infoElement.parentNode.removeChild(infoElement);
-            }
-        }, 3000);
-    }
-
             transcribing: 'Converting speech to text...',
             processing: 'Processing your message...',
             responding: 'Generating response...'
@@ -527,6 +510,23 @@ class ChatInterface {
             };
             progressBar.style.width = `${stageProgress[stage]}%`;
         }
+    }
+
+    showInfo(message) {
+        let infoElement = document.getElementById('infoMessage');
+        if (!infoElement) {
+            infoElement = document.createElement('div');
+            infoElement.id = 'infoMessage';
+            infoElement.className = 'alert alert-info mt-2';
+            this.elements.recordButton.parentNode.appendChild(infoElement);
+        }
+        infoElement.textContent = message;
+        
+        setTimeout(() => {
+            if (infoElement.parentNode) {
+                infoElement.parentNode.removeChild(infoElement);
+            }
+        }, 3000);
     }
 
     updateLoadingStatus(message) {
