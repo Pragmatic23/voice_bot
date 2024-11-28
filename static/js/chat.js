@@ -20,7 +20,7 @@
                 voiceModel: document.getElementById('voiceModel'),
                 historyButton: document.getElementById('historyButton'),
                 resetButton: document.getElementById('resetButton'),
-                exportButton: document.getElementById('exportButton'),
+                
                 endSessionButton: document.getElementById('endSessionButton'),
                 chatSummary: document.getElementById('chatSummary'),
                 closeSummaryButton: document.getElementById('closeSummaryButton'),
@@ -124,15 +124,7 @@
                     }
                 });
     
-                // Export button handler
-                this.elements.exportButton.addEventListener('click', () => {
-                    try {
-                        this.exportChat();
-                    } catch (error) {
-                        console.error('[ChatInterface] Error exporting chat:', error);
-                        this.showError('Failed to export chat. Please try again.');
-                    }
-                });
+                
     
                 // Close summary button handler
                 this.elements.closeSummaryButton.addEventListener('click', () => {
