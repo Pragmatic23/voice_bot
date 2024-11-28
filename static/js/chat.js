@@ -334,31 +334,6 @@ class ChatInterface {
         }
     }
 
-    showError(message) {
-        if (!this.elements.chatWindow) return;
-
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
-        errorDiv.innerHTML = `
-            ${this.escapeHtml(message)}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        `;
-        this.elements.chatWindow.appendChild(errorDiv);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-            if (errorDiv.parentNode === this.elements.chatWindow) {
-                errorDiv.remove();
-            }
-        }, 5000);
-    }
-    updateLoadingStatus(message) {
-        let statusElement = document.getElementById('processingStatus');
-        if (!statusElement) {
-            statusElement = document.createElement('div');
-            statusElement.id = 'processingStatus';
-            statusElement.className = 'text-center mt-2 text-muted';
-            this.elements.recordButton.parentNode.appendChild(statusElement);
     async exportChat() {
         if (this.messageHistory.length === 0) {
             this.showError('No conversation to export');
@@ -404,6 +379,32 @@ class ChatInterface {
         }
     }
 
+    showError(message) {
+        if (!this.elements.chatWindow) return;
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+        errorDiv.innerHTML = `
+            ${this.escapeHtml(message)}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        this.elements.chatWindow.appendChild(errorDiv);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (errorDiv.parentNode === this.elements.chatWindow) {
+                errorDiv.remove();
+            }
+        }, 5000);
+    }
+
+    updateLoadingStatus(message) {
+        let statusElement = document.getElementById('processingStatus');
+        if (!statusElement) {
+            statusElement = document.createElement('div');
+            statusElement.id = 'processingStatus';
+            statusElement.className = 'text-center mt-2 text-muted';
+            this.elements.recordButton.parentNode.appendChild(statusElement);
         }
         statusElement.textContent = message;
     }
