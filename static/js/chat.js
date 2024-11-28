@@ -194,26 +194,30 @@
                 // Always use continuous mode
                 // Set up speech end callback for continuous mode
                 this.audioHandler.setSpeechEndCallback(async (audioBlob) => {
-                        try {
-                            console.log('[ChatInterface] Speech chunk detected, processing audio...');
-    
-                            if (audioBlob && audioBlob.size > 0) {
-                                // Process audio without stopping recording
-                                await this.processAudio(audioBlob, true);
-                            }
-                        } catch (error) {
-                            console.error('[ChatInterface] Error in continuous mode callback:', error);
-                            this.showError('Error processing voice input. Attempting to continue...');
+                    try {
+                        console.log('[ChatInterface] Speech chunk detected, processing audio...');
+
+                        if (audioBlob && audioBlob.size > 0) {
+                            // Process audio without stopping recording
+                            await this.processAudio(audioBlob, true);
                         }
-                    });
-    
-                    // Set up bot response end callback
-                    this.audioHandler.setBotResponseEndCallback(() => {
+                    } catch (error) {
+                        console.error('[ChatInterface] Error in continuous mode callback:', error);
+                        this.showError('Error processing voice input. Attempting to continue...');
+                    }
+                });
+
+                // Set up bot response end callback
+                this.audioHandler.setBotResponseEndCallback(() => {
+                    try {
                         console.log('[ChatInterface] Bot response ended, ready for next input');
                         this.setLoadingState(false);
                         this.updateStageProgress('recording');
-                    });
-                }
+                    } catch (error) {
+                        console.error('[ChatInterface] Error in bot response callback:', error);
+                        this.showError('Error handling bot response. Please try again.');
+                    }
+                });
     
                 await this.audioHandler.startRecording(true);  // Always use continuous mode
                 this.elements.recordButton.classList.add('recording');
@@ -222,9 +226,9 @@
             } catch (error) {
                 console.error('[ChatInterface] Failed to start recording:', error);
                 this.showError(error.message || 'Failed to start recording. Please try again.');
-                document.getElementById('continuousMode').checked = false;
                 this.setLoadingState(false);
             }
+        }
         }
         async stopRecording() {
             try {
