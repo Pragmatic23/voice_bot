@@ -10,7 +10,7 @@ class AudioHandler {
         this.isContinuousMode = false;
         this.audioContext = null;
         this.silenceThreshold = -35; // Adjusted threshold for better sensitivity
-        this.silenceDuration = 1.0; // Reduced to 1.0 seconds for faster response
+        this.silenceDuration = 0.5; // Reduced to 0.5 seconds for faster response
         this.lastVoiceTime = 0;
         this.voiceDetectionInterval = null;
         this.onSpeechEnd = null;
@@ -18,6 +18,8 @@ class AudioHandler {
         this.volumeDataArray = null;
         this.currentChunks = [];
         this.isProcessingChunk = false;
+        this.overlappingRecording = false; // Flag for overlap handling
+        this.processingQueue = []; // Queue for handling overlapping chunks
     }
 
     async startRecording(continuous = false) {
@@ -166,33 +168,47 @@ class AudioHandler {
                     consecutiveSilenceCount++;
                     console.log(`[AudioHandler] Silence detected (${consecutiveSilenceCount}/${silenceChecksNeeded})`);
                     
-                    if (consecutiveSilenceCount >= silenceChecksNeeded && !isProcessingChunk) {
+                    if (consecutiveSilenceCount >= silenceChecksNeeded) {
                         console.log('[AudioHandler] Silence duration threshold reached, processing chunk');
-                        isProcessingChunk = true;
                         
                         try {
-                            // Pause current recording but don't stop completely
+                            // Keep recording active but start a new chunk
                             if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
                                 this.mediaRecorder.requestData();
-                            }
-                            
-                            // Process the current chunk if we have enough data
-                            if (this.chunks.length > 0) {
-                                const currentBlob = new Blob(this.chunks, { type: 'audio/webm;codecs=opus' });
-                                console.log(`[AudioHandler] Processing audio chunk: ${currentBlob.size} bytes`);
                                 
-                                if (typeof this.onSpeechEnd === 'function') {
-                                    await this.onSpeechEnd(currentBlob);
+                                // Process current chunks while continuing to record
+                                if (this.chunks.length > 0) {
+                                    const currentBlob = new Blob(this.chunks, { type: 'audio/webm;codecs=opus' });
+                                    console.log(`[AudioHandler] Processing audio chunk: ${currentBlob.size} bytes`);
+                                    
+                                    // Start new chunk collection while processing current
+                                    this.overlappingRecording = true;
+                                    const chunksToProcess = [...this.chunks];
+                                    this.chunks = []; // Reset for new recording
+                                    
+                                    // Process chunk asynchronously while continuing recording
+                                    this.processingQueue.push(async () => {
+                                        try {
+                                            if (typeof this.onSpeechEnd === 'function') {
+                                                await this.onSpeechEnd(new Blob(chunksToProcess, { type: 'audio/webm;codecs=opus' }));
+                                            }
+                                        } catch (error) {
+                                            console.error('[AudioHandler] Error processing chunk in queue:', error);
+                                        }
+                                    });
+                                    
+                                    // Process queue
+                                    while (this.processingQueue.length > 0) {
+                                        const processChunk = this.processingQueue.shift();
+                                        await processChunk();
+                                    }
                                 }
-                                
-                                // Clear chunks for next recording
-                                this.chunks = [];
                             }
                         } catch (error) {
                             console.error('[AudioHandler] Error processing audio chunk:', error);
                         } finally {
-                            isProcessingChunk = false;
                             consecutiveSilenceCount = 0;
+                            this.overlappingRecording = false;
                         }
                     }
                 }

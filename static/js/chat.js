@@ -195,37 +195,31 @@ class ChatInterface {
             // Set up speech end callback for continuous mode
             if (continuousMode) {
                 console.log('[ChatInterface] Setting up continuous mode callback');
-                this.audioHandler.setSpeechEndCallback(async () => {
+                this.audioHandler.setSpeechEndCallback(async (audioBlob) => {
                     try {
-                        console.log('[ChatInterface] Speech end detected, processing audio...');
-                        const audioBlob = await this.audioHandler.stopRecording();
-                        this.elements.recordButton.classList.remove('recording');
-                        this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
+                        console.log('[ChatInterface] Speech chunk detected, processing audio...');
                         
                         if (audioBlob && audioBlob.size > 0) {
-                            await this.processAudio(audioBlob);
-                            
-                            // Check if still in continuous mode before restarting
-                            if (document.getElementById('continuousMode').checked) {
-                                console.log('[ChatInterface] Restarting recording in continuous mode');
-                                setTimeout(() => {
-                                    if (document.getElementById('continuousMode').checked) {
-                                        this.startRecording().catch(error => {
-                                            console.error('[ChatInterface] Failed to restart recording:', error);
-                                            this.showError('Failed to restart recording. Continuous mode disabled.');
-                                            document.getElementById('continuousMode').checked = false;
-                                        });
-                                    }
-                                }, 1000);
-                            }
+                            // Process audio without stopping recording
+                            this.processAudio(audioBlob, true).catch(error => {
+                                console.error('[ChatInterface] Error processing audio chunk:', error);
+                                // Don't disable continuous mode on processing errors
+                                this.showError('Error processing voice input. Continuing recording...');
+                            });
                         } else {
                             console.log('[ChatInterface] No valid audio data to process');
                         }
                     } catch (error) {
                         console.error('[ChatInterface] Error in continuous mode callback:', error);
-                        this.showError('Error processing voice input. Continuous mode disabled.');
-                        document.getElementById('continuousMode').checked = false;
-                        this.setLoadingState(false);
+                        // Show error but don't disable continuous mode for recoverable errors
+                        this.showError('Error processing voice input. Attempting to continue...');
+                        
+                        // Only disable continuous mode for critical errors
+                        if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+                            document.getElementById('continuousMode').checked = false;
+                            this.setLoadingState(false);
+                            this.showError('Critical error. Continuous mode disabled.');
+                        }
                     }
                 });
             }
@@ -272,11 +266,12 @@ class ChatInterface {
         }
     }
 
-    async processAudio(audioBlob) {
+    async processAudio(audioBlob, continuous = false) {
         const processingStart = Date.now();
         console.log('[ChatInterface] Starting audio processing...', {
             timestamp: new Date().toISOString(),
-            processingId: `proc_${processingStart}`
+            processingId: `proc_${processingStart}`,
+            mode: continuous ? 'continuous' : 'single'
         });
 
         if (!audioBlob) {
@@ -307,7 +302,10 @@ class ChatInterface {
             return;
         }
 
-        this.setLoadingState(true, 'processing');
+        // Only set loading state in non-continuous mode
+        if (!continuous) {
+            this.setLoadingState(true, 'processing');
+        }
         this.updateStageProgress('transcribing');
         console.log(`[ChatInterface] Processing started at: ${new Date(processingStart).toISOString()}`);
         
