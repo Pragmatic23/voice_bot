@@ -1,12 +1,30 @@
 import os
 import time
 import logging
+import sys
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from utils.openai_helper import process_audio, generate_response, text_to_speech
 import asyncio
+
+# Enhanced logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    stream=sys.stdout
+)
+
+# Add request_id filter
+class RequestIDFilter(logging.Filter):
+    def filter(self, record):
+        record.request_id = getattr(record, 'request_id', 'N/A')
+        return True
+
+logger = logging.getLogger(__name__)
+logger.addFilter(RequestIDFilter())
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,20 +52,42 @@ def index():
 @app.route('/process-audio', methods=['POST'])
 def process_audio_route():
     start_time = time.time()
-    request_id = f"req_{int(start_time)}"
-    logger.info(f"[{request_id}] New audio processing request received at {datetime.now()}")
+    request_id = f"req_{int(start_time * 1000)}"
+    logger.info("New audio processing request received", extra={'request_id': request_id})
     
     try:
-        # Request validation logging
-        logger.info(f"[{request_id}] Validating request parameters...")
+        # Enhanced request validation logging
+        logger.info("Starting request validation", extra={'request_id': request_id})
+        logger.info(f"Request headers: {dict(request.headers)}", extra={'request_id': request_id})
+        
         if 'audio' not in request.files:
-            logger.error(f"[{request_id}] No audio file in request")
-            return jsonify({'error': 'No audio file provided'}), 400
+            logger.error("No audio file in request", extra={'request_id': request_id})
+            return jsonify({'error': 'No audio file provided', 'request_id': request_id}), 400
         
         audio_file = request.files['audio']
         if not audio_file:
-            logger.error(f"[{request_id}] Empty audio file received")
-            return jsonify({'error': 'Empty audio file'}), 400
+            logger.error("Empty audio file received", extra={'request_id': request_id})
+            return jsonify({'error': 'Empty audio file', 'request_id': request_id}), 400
+            
+        # Log file details
+        file_size = request.content_length
+        content_type = audio_file.content_type
+        logger.info(f"Audio file received - Size: {file_size} bytes, Type: {content_type}", 
+                   extra={'request_id': request_id})
+        
+        # Validate file size
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file_size > max_size:
+            logger.error(f"File size ({file_size} bytes) exceeds maximum allowed size ({max_size} bytes)",
+                        extra={'request_id': request_id})
+            return jsonify({'error': 'File too large', 'request_id': request_id}), 400
+            
+        # Validate content type
+        allowed_types = {'audio/wav', 'audio/wave', 'audio/webm', 'audio/x-wav'}
+        if content_type not in allowed_types:
+            logger.error(f"Invalid content type: {content_type}", extra={'request_id': request_id})
+            return jsonify({'error': f'Invalid audio format. Allowed types: {", ".join(allowed_types)}',
+                          'request_id': request_id}), 400
         
         # Log request details
         category = request.form.get('category', 'general')
@@ -57,15 +97,21 @@ def process_audio_route():
         
         # Process all async operations using asyncio
         async def process_request():
+            # Enhanced logging for audio processing steps
+            logger.info("Starting audio processing pipeline", extra={'request_id': request_id})
+            
             # Process audio using Whisper API
-            logger.info(f"[{request_id}] Starting audio transcription...")
             transcription_start = time.time()
+            logger.info("Initiating audio transcription", extra={'request_id': request_id})
             try:
                 text = await process_audio(audio_file, OPENAI_API_KEY)
-                logger.info(f"[{request_id}] Audio transcription completed in {time.time() - transcription_start:.2f}s")
+                transcription_time = time.time() - transcription_start
+                logger.info(f"Audio transcription completed in {transcription_time:.2f}s - Text length: {len(text)} chars",
+                           extra={'request_id': request_id})
             except Exception as e:
-                logger.error(f"[{request_id}] Audio transcription failed: {str(e)}")
-                return jsonify({'error': f'Error processing audio: {str(e)}'}), 500
+                logger.error(f"Audio transcription failed: {str(e)}", 
+                           extra={'request_id': request_id, 'error_type': type(e).__name__})
+                return jsonify({'error': f'Error processing audio: {str(e)}', 'request_id': request_id}), 500
             
             # Get conversation history from session
             history = session.get('chat_history', [])
