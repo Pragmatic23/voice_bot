@@ -276,22 +276,45 @@
             try {
                 this.updateStageProgress('transcribing');
 
-                // Verify the audio blob type
-                if (!audioBlob.type) {
-                    console.warn('[ChatInterface] Audio blob missing type, setting to webm');
-                    audioBlob = new Blob([audioBlob], { type: 'audio/webm' });
+                // Convert WebM to MP3 using MediaRecorder and Web Audio API
+                const audioContext = new AudioContext();
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                // Create MP3 encoder
+                const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 128);
+                const samples = new Int16Array(audioBuffer.length);
+                const channel = audioBuffer.getChannelData(0);
+
+                // Convert Float32Array to Int16Array
+                for (let i = 0; i < channel.length; i++) {
+                    samples[i] = channel[i] < 0 ? channel[i] * 0x8000 : channel[i] * 0x7FFF;
                 }
 
-                // Log the audio format for debugging
-                console.log('[ChatInterface] Processing audio format:', audioBlob.type);
+                // Encode to MP3
+                const mp3Data = [];
+                const blockSize = 1152;
+                for (let i = 0; i < samples.length; i += blockSize) {
+                    const sampleChunk = samples.subarray(i, i + blockSize);
+                    const mp3buf = mp3Encoder.encodeBuffer(sampleChunk);
+                    if (mp3buf.length > 0) {
+                        mp3Data.push(mp3buf);
+                    }
+                }
+
+                // Get the final part of MP3
+                const mp3buf = mp3Encoder.flush();
+                if (mp3buf.length > 0) {
+                    mp3Data.push(mp3buf);
+                }
+
+                // Create MP3 Blob
+                const mp3Blob = new Blob(mp3Data, { type: 'audio/mp3' });
 
                 const formData = new FormData();
-                formData.append('audio', audioBlob, `recording.${audioBlob.type.split('/')[1]}`);
+                formData.append('audio', mp3Blob, 'recording.mp3');
                 formData.append('category', this.currentCategory);
                 formData.append('voice_model', this.elements.voiceModel.value);
-
-                // Log the FormData contents for debugging
-                console.log('[ChatInterface] FormData audio file:', formData.get('audio'));
 
                 const response = await fetch('/process-audio', {
                     method: 'POST',
@@ -317,15 +340,8 @@
                 this.showError(error.message || 'Failed to process audio. Please try again.');
 
                 if (continuous) {
-                    // Add delay before restarting continuous mode
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    try {
-                        await this.audioHandler.startRecording(true);
-                    } catch (restartError) {
-                        console.error('[ChatInterface] Failed to restart continuous recording:', restartError);
-                        this.showError('Failed to restart continuous recording. Please try again.');
-                        document.getElementById('continuousMode').checked = false;
-                    }
+                    // Attempt to restart recording in continuous mode
+                    await this.audioHandler.startRecording(true);
                 }
             } finally {
                 if (!continuous) {
@@ -459,15 +475,16 @@
             }, 5000);
         }
     
+        // Define stages object at class level
+        stages = {
+            recording: 'Recording your message...',
+            transcribing: 'Converting speech to text...',
+            processing: 'Processing your message...',
+            responding: 'Generating response...'
+        };
+
         updateStageProgress(stage) {
-            const stages = {
-                recording: 'Recording your message...',
-                transcribing: 'Converting speech to text...',
-                processing: 'Processing your message...',
-                responding: 'Generating response...'
-            };
-    
-            this.updateLoadingStatus(stages[stage] || '');
+            this.updateLoadingStatus(this.stages[stage] || '');
             
             // Update visual progress indicator
             let progressElement = document.getElementById('processingProgress');

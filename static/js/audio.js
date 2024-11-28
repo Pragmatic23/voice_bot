@@ -193,6 +193,9 @@ class AudioHandler {
 
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Float32Array(bufferLength);
+            let voiceDetected = false;
+            let consecutiveSilenceFrames = 0;
+            const CONSECUTIVE_FRAMES_THRESHOLD = 15; // About 1.5 seconds
 
             const checkVoiceActivity = async () => {
                 if (!this.isRecording || !this.isContinuousMode) return;
@@ -202,25 +205,36 @@ class AudioHandler {
                 const db = 20 * Math.log10(rms);
 
                 if (db > this.silenceThreshold) {
+                    voiceDetected = true;
+                    consecutiveSilenceFrames = 0;
                     this.lastVoiceTime = Date.now();
-                } else if (Date.now() - this.lastVoiceTime > this.silenceDuration * 1000 && !this.isProcessing) {
-                    this.isProcessing = true;
+                } else if (voiceDetected) {
+                    consecutiveSilenceFrames++;
+                    
+                    if (consecutiveSilenceFrames >= CONSECUTIVE_FRAMES_THRESHOLD && !this.isProcessing && !this.isWaitingForResponse) {
+                        voiceDetected = false;
+                        consecutiveSilenceFrames = 0;
+                        this.isProcessing = true;
 
-                    // Stop current recording
-                    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-                        this.mediaRecorder.requestData();
-                        this.mediaRecorder.stop();
+                        try {
+                            // Stop current recording
+                            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                                console.log('[AudioHandler] Voice segment complete, processing...');
+                                this.mediaRecorder.requestData();
+                                this.mediaRecorder.stop();
+                            }
+
+                            // Create new MediaRecorder for next chunk
+                            await this.createMediaRecorder();
+                            this.mediaRecorder.start(1000);
+                        } catch (error) {
+                            console.error('[AudioHandler] Error in voice detection cycle:', error);
+                            // Attempt recovery
+                            this.recoverContinuousMode();
+                        } finally {
+                            this.isProcessing = false;
+                        }
                     }
-
-                    try {
-                        // Create new MediaRecorder for next chunk
-                        await this.createMediaRecorder();
-                        this.mediaRecorder.start(1000);
-                    } catch (error) {
-                        console.error('[AudioHandler] Error recreating MediaRecorder:', error);
-                    }
-
-                    this.isProcessing = false;
                 }
             };
 
@@ -319,6 +333,18 @@ class AudioHandler {
         this.onBotResponseEnd = callback;
     }
 
+    async recoverContinuousMode() {
+        console.log('[AudioHandler] Attempting to recover continuous mode...');
+        try {
+            await this.cleanup();
+            await this.startRecording(true);
+            console.log('[AudioHandler] Continuous mode recovered successfully');
+        } catch (error) {
+            console.error('[AudioHandler] Failed to recover continuous mode:', error);
+            throw new Error('Failed to recover continuous recording. Please refresh the page.');
+        }
+    }
+
     formatError(error) {
         const errorMessages = {
             'NotAllowedError': 'Microphone access denied. Please grant microphone permissions.',
@@ -326,6 +352,7 @@ class AudioHandler {
             'NotReadableError': 'Could not access microphone. Please check if another application is using it.',
             'SecurityError': 'Security error occurred. Please ensure you\'re using HTTPS.',
             'AbortError': 'Recording was aborted. Please try again.',
+            'RecoveryError': 'Failed to recover from an error. Please refresh the page.',
         };
 
         return errorMessages[error.name] || `An error occurred: ${error.message}`;
