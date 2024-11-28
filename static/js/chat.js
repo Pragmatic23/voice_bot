@@ -191,7 +191,6 @@
                 this.updateStageProgress('recording');
                 console.log('[ChatInterface] Starting recording in continuous mode');
     
-                // Always use continuous mode
                 // Set up speech end callback for continuous mode
                 this.audioHandler.setSpeechEndCallback(async (audioBlob) => {
                     try {
@@ -229,18 +228,10 @@
                 this.setLoadingState(false);
             }
         }
-        }
+
         async stopRecording() {
             try {
                 console.log('[ChatInterface] Stopping recording...');
-                const wasContinuous = document.getElementById('continuousMode').checked;
-                
-                // Disable continuous mode before stopping
-                if (wasContinuous) {
-                    console.log('[ChatInterface] Disabling continuous mode before stopping');
-                    document.getElementById('continuousMode').checked = false;
-                }
-                
                 const audioBlob = await this.audioHandler.stopRecording();
                 this.elements.recordButton.classList.remove('recording');
                 this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
