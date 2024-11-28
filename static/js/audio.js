@@ -1,4 +1,3 @@
-// Enhanced AudioHandler class
 class AudioHandler {
     constructor() {
         this.mediaRecorder = null;
@@ -9,14 +8,31 @@ class AudioHandler {
         this.isProcessing = false;
         this.audioContext = null;
         this.silenceThreshold = -45;
-        this.silenceDuration = 1.0; // 1 second of silence to trigger end
+        this.silenceDuration = 1.0;
         this.lastVoiceTime = 0;
         this.voiceDetectionInterval = null;
         this.onSpeechEnd = null;
         this.onBotResponseEnd = null;
         this.isWaitingForResponse = false;
-        this.overlappingRecording = false;
-        this.processingQueue = [];
+        this.mimeType = this.getSupportedMimeType();
+    }
+
+    getSupportedMimeType() {
+        // Prioritize formats that are compatible with OpenAI's transcription service
+        const preferredTypes = [
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/wav',
+            'audio/mp4'
+        ];
+
+        for (const type of preferredTypes) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                console.log(`[AudioHandler] Using MIME type: ${type}`);
+                return type;
+            }
+        }
+        throw new Error('No supported audio MIME types found');
     }
 
     async startRecording(continuous = false) {
@@ -30,8 +46,9 @@ class AudioHandler {
 
             const constraints = {
                 audio: {
-                    sampleRate: 44100,
                     channelCount: 1,
+                    sampleRate: 48000,
+                    sampleSize: 16,
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true
@@ -40,12 +57,15 @@ class AudioHandler {
 
             this.stream = await navigator.mediaDevices.getUserMedia(constraints);
             this.chunks = [];
+            await this.createMediaRecorder();
 
-            this.mediaRecorder = new MediaRecorder(this.stream, {
-                mimeType: 'audio/webm;codecs=opus'
-            });
+            // // Create MediaRecorder with explicit settings
+            // this.mediaRecorder = new MediaRecorder(this.stream, {
+            //     mimeType: this.mimeType,
+            //     audioBitsPerSecond: 128000
+            // });
 
-            this.setupRecordingHandlers();
+            // this.setupRecordingHandlers();
 
             if (continuous) {
                 await this.setupVoiceDetection();
@@ -60,7 +80,20 @@ class AudioHandler {
         }
     }
 
-    setupRecordingHandlers() {
+    async createMediaRecorder() {
+        if (!this.stream) {
+            throw new Error('No media stream available');
+        }
+
+        this.mediaRecorder = new MediaRecorder(this.stream, {
+            mimeType: this.mimeType,
+            audioBitsPerSecond: 128000
+        });
+
+        this.setupRecordingHandlers();
+    }
+
+        setupRecordingHandlers() {
         this.mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
                 this.chunks.push(event.data);
@@ -69,15 +102,86 @@ class AudioHandler {
 
         this.mediaRecorder.onstop = async () => {
             if (this.chunks.length > 0) {
-                const audioBlob = new Blob(this.chunks, { type: 'audio/webm;codecs=opus' });
-                this.chunks = [];
+                try {
+                    // Convert audio to a compatible format if needed
+                    const audioBlob = await this.convertToCompatibleFormat(
+                        new Blob(this.chunks, { type: this.mimeType })
+                    );
+                    this.chunks = [];
 
-                if (typeof this.onSpeechEnd === 'function' && !this.isWaitingForResponse) {
-                    this.isWaitingForResponse = true;
-                    await this.onSpeechEnd(audioBlob);
+                    if (typeof this.onSpeechEnd === 'function' && !this.isWaitingForResponse) {
+                        this.isWaitingForResponse = true;
+                        await this.onSpeechEnd(audioBlob);
+                    }
+                } catch (error) {
+                    console.error('[AudioHandler] Error processing audio chunks:', error);
+                    throw error;
                 }
             }
         };
+    }
+
+    async convertToCompatibleFormat(blob) {
+        try {
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            
+            // Convert to WAV format
+            const wavBlob = await this.audioBufferToWav(audioBuffer);
+            return new Blob([wavBlob], { type: 'audio/wav' });
+        } catch (error) {
+            console.error('[AudioHandler] Error converting audio format:', error);
+            throw error;
+        }
+    }
+
+    audioBufferToWav(buffer) {
+        const numChannels = 1;
+        const sampleRate = buffer.sampleRate;
+        const format = 1; // PCM
+        const bitDepth = 16;
+
+        const writeString = (view, offset, string) => {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        };
+
+        const floatTo16BitPCM = (output, offset, input) => {
+            for (let i = 0; i < input.length; i++, offset += 2) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+        };
+
+        const dataSize = buffer.length * 2;
+        const headerSize = 44;
+        const totalSize = headerSize + dataSize;
+        const arrayBuffer = new ArrayBuffer(totalSize);
+        const view = new DataView(arrayBuffer);
+
+        // RIFF header
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + dataSize, true);
+        writeString(view, 8, 'WAVE');
+
+        // Format chunk
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, format, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * (bitDepth / 8), true);
+        view.setUint16(32, numChannels * (bitDepth / 8), true);
+        view.setUint16(34, bitDepth, true);
+
+        // Data chunk
+        writeString(view, 36, 'data');
+        view.setUint32(40, dataSize, true);
+        floatTo16BitPCM(view, 44, buffer.getChannelData(0));
+
+        return arrayBuffer;
     }
 
     async setupVoiceDetection() {
@@ -90,7 +194,7 @@ class AudioHandler {
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Float32Array(bufferLength);
 
-            const checkVoiceActivity = () => {
+            const checkVoiceActivity = async () => {
                 if (!this.isRecording || !this.isContinuousMode) return;
 
                 analyser.getFloatTimeDomainData(dataArray);
@@ -101,39 +205,28 @@ class AudioHandler {
                     this.lastVoiceTime = Date.now();
                 } else if (Date.now() - this.lastVoiceTime > this.silenceDuration * 1000 && !this.isProcessing) {
                     this.isProcessing = true;
+
+                    // Stop current recording
                     if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
                         this.mediaRecorder.requestData();
-                        
-                        if (this.chunks.length > 0) {
-                            this.overlappingRecording = true;
-                            const chunksToProcess = [...this.chunks];
-                            this.chunks = []; // Reset for new recording
-                            
-                            // Process chunk asynchronously while continuing recording
-                            this.processingQueue.push(async () => {
-                                try {
-                                    if (typeof this.onSpeechEnd === 'function') {
-                                        await this.onSpeechEnd(new Blob(chunksToProcess, { type: 'audio/webm;codecs=opus' }));
-                                    }
-                                } catch (error) {
-                                    console.error('[AudioHandler] Error processing chunk in queue:', error);
-                                }
-                            });
-                            
-                            // Process queue
-                            while (this.processingQueue.length > 0) {
-                                const processChunk = this.processingQueue.shift();
-                                await processChunk();
-                            }
-                        }
+                        this.mediaRecorder.stop();
                     }
+
+                    try {
+                        // Create new MediaRecorder for next chunk
+                        await this.createMediaRecorder();
+                        this.mediaRecorder.start(1000);
+                    } catch (error) {
+                        console.error('[AudioHandler] Error recreating MediaRecorder:', error);
+                    }
+
                     this.isProcessing = false;
                 }
             };
 
             this.voiceDetectionInterval = setInterval(checkVoiceActivity, 100);
         } catch (error) {
-            console.error('Error setting up voice detection:', error);
+            console.error('[AudioHandler] Error setting up voice detection:', error);
             throw new Error('Failed to initialize voice detection');
         }
     }
@@ -148,8 +241,10 @@ class AudioHandler {
             this.isRecording = false;
 
             const audioBlob = await new Promise((resolve) => {
-                this.mediaRecorder.onstop = () => {
-                    const blob = new Blob(this.chunks, { type: 'audio/webm;codecs=opus' });
+                this.mediaRecorder.onstop = async () => {
+                    const blob = await this.convertToCompatibleFormat(
+                        new Blob(this.chunks, { type: this.mimeType })
+                    );
                     resolve(blob);
                 };
             });
@@ -180,7 +275,6 @@ class AudioHandler {
         this.chunks = [];
         this.isRecording = false;
         this.isWaitingForResponse = false;
-        this.overlappingRecording = false;
     }
 
     async playAudio(audioDataUrl) {
@@ -194,7 +288,6 @@ class AudioHandler {
                         this.isWaitingForResponse = false;
 
                         if (this.isContinuousMode) {
-                            // Resume recording after bot response
                             await this.startRecording(true);
                         }
                     } catch (error) {

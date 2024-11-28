@@ -85,13 +85,9 @@ def process_audio_route():
         # Enhanced content type validation with codec support
         allowed_types = {
             'audio/wav': None,
-            'audio/webm': None,
-            'audio/mpeg': None,
-            'audio/mp4': None,
-            'audio/ogg': None,
-            'audio/flac': None,
             'audio/x-wav': None,
-            'audio/wave': None
+            'audio/wave': None,
+            'audio/webm': None
         }
         
         # Parse content type and codec
