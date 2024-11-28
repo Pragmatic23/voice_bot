@@ -132,8 +132,11 @@ def process_audio_route():
         }
         logger.info("Received audio processing request", extra=request_details)
         
-        # Process all async operations using asyncio
-        async def process_request():
+        # Create event loop for async operations
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
             # Enhanced logging for audio processing steps
             logger.info("Starting audio processing pipeline", extra={'request_id': request_id})
             
@@ -141,7 +144,7 @@ def process_audio_route():
             transcription_start = time.time()
             logger.info("Initiating audio transcription", extra={'request_id': request_id})
             try:
-                text = await process_audio(audio_file, OPENAI_API_KEY)
+                text = loop.run_until_complete(process_audio(audio_file, OPENAI_API_KEY))
                 transcription_time = time.time() - transcription_start
                 logger.info(f"Audio transcription completed in {transcription_time:.2f}s - Text length: {len(text)} chars",
                            extra={'request_id': request_id})
@@ -157,7 +160,7 @@ def process_audio_route():
             # Generate response using GPT
             gpt_start = time.time()
             try:
-                response = await generate_response(text, category, history, OPENAI_API_KEY)
+                response = loop.run_until_complete(generate_response(text, category, history, OPENAI_API_KEY))
                 logger.info(f"[{request_id}] GPT response generated in {time.time() - gpt_start:.2f}s")
             except Exception as e:
                 logger.error(f"[{request_id}] GPT response generation failed: {str(e)}")
@@ -166,16 +169,13 @@ def process_audio_route():
             # Convert to speech
             tts_start = time.time()
             try:
-                audio_response = await text_to_speech(response, voice_model)
+                audio_response = loop.run_until_complete(text_to_speech(response, voice_model))
                 logger.info(f"[{request_id}] Text-to-speech completed in {time.time() - tts_start:.2f}s")
             except Exception as e:
                 logger.error(f"[{request_id}] Text-to-speech conversion failed: {str(e)}")
                 return jsonify({'error': f'Error converting text to speech: {str(e)}'}), 500
-            
-            return text, response, audio_response
-
-        # Run async operations
-        text, response, audio_response = asyncio.run(process_request())
+        finally:
+            loop.close()
         
         # Update conversation history
         history = session.get('chat_history', [])
@@ -210,3 +210,6 @@ def reset_session():
 with app.app_context():
     import models
     db.create_all()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
