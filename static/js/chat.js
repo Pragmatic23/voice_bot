@@ -190,19 +190,42 @@ class ChatInterface {
         try {
             this.updateStageProgress('recording');
             const continuousMode = document.getElementById('continuousMode').checked;
+            console.log(`[ChatInterface] Starting recording in ${continuousMode ? 'continuous' : 'single'} mode`);
             
             // Set up speech end callback for continuous mode
             if (continuousMode) {
+                console.log('[ChatInterface] Setting up continuous mode callback');
                 this.audioHandler.setSpeechEndCallback(async () => {
-                    const audioBlob = await this.audioHandler.stopRecording();
-                    this.elements.recordButton.classList.remove('recording');
-                    this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
-                    if (audioBlob) {
-                        await this.processAudio(audioBlob);
-                        // Automatically start recording again after processing
-                        if (document.getElementById('continuousMode').checked) {
-                            setTimeout(() => this.startRecording(), 1000);
+                    try {
+                        console.log('[ChatInterface] Speech end detected, processing audio...');
+                        const audioBlob = await this.audioHandler.stopRecording();
+                        this.elements.recordButton.classList.remove('recording');
+                        this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
+                        
+                        if (audioBlob && audioBlob.size > 0) {
+                            await this.processAudio(audioBlob);
+                            
+                            // Check if still in continuous mode before restarting
+                            if (document.getElementById('continuousMode').checked) {
+                                console.log('[ChatInterface] Restarting recording in continuous mode');
+                                setTimeout(() => {
+                                    if (document.getElementById('continuousMode').checked) {
+                                        this.startRecording().catch(error => {
+                                            console.error('[ChatInterface] Failed to restart recording:', error);
+                                            this.showError('Failed to restart recording. Continuous mode disabled.');
+                                            document.getElementById('continuousMode').checked = false;
+                                        });
+                                    }
+                                }, 1000);
+                            }
+                        } else {
+                            console.log('[ChatInterface] No valid audio data to process');
                         }
+                    } catch (error) {
+                        console.error('[ChatInterface] Error in continuous mode callback:', error);
+                        this.showError('Error processing voice input. Continuous mode disabled.');
+                        document.getElementById('continuousMode').checked = false;
+                        this.setLoadingState(false);
                     }
                 });
             }
@@ -210,19 +233,38 @@ class ChatInterface {
             await this.audioHandler.startRecording(continuousMode);
             this.elements.recordButton.classList.add('recording');
             this.elements.recordButton.querySelector('i').className = 'fas fa-stop';
+            
+            if (continuousMode) {
+                this.showInfo('Continuous mode active. Speaking will be automatically detected.');
+            }
         } catch (error) {
             console.error('[ChatInterface] Failed to start recording:', error);
             this.showError(error.message || 'Failed to start recording. Please try again.');
+            document.getElementById('continuousMode').checked = false;
             this.setLoadingState(false);
         }
     }
 
     async stopRecording() {
         try {
+            console.log('[ChatInterface] Stopping recording...');
+            const wasContinuous = document.getElementById('continuousMode').checked;
+            
+            // Disable continuous mode before stopping
+            if (wasContinuous) {
+                console.log('[ChatInterface] Disabling continuous mode before stopping');
+                document.getElementById('continuousMode').checked = false;
+            }
+            
             const audioBlob = await this.audioHandler.stopRecording();
             this.elements.recordButton.classList.remove('recording');
             this.elements.recordButton.querySelector('i').className = 'fas fa-microphone';
-            await this.processAudio(audioBlob);
+            
+            if (audioBlob && audioBlob.size > 0) {
+                await this.processAudio(audioBlob);
+            } else {
+                console.log('[ChatInterface] No valid audio data to process');
+            }
         } catch (error) {
             console.error('[ChatInterface] Failed to stop recording:', error);
             this.showError(error.message || 'Failed to process recording. Please try again.');
@@ -439,6 +481,23 @@ class ChatInterface {
     updateStageProgress(stage) {
         const stages = {
             recording: 'Recording your message...',
+    showInfo(message) {
+        let infoElement = document.getElementById('infoMessage');
+        if (!infoElement) {
+            infoElement = document.createElement('div');
+            infoElement.id = 'infoMessage';
+            infoElement.className = 'alert alert-info mt-2';
+            this.elements.recordButton.parentNode.appendChild(infoElement);
+        }
+        infoElement.textContent = message;
+        
+        setTimeout(() => {
+            if (infoElement.parentNode) {
+                infoElement.parentNode.removeChild(infoElement);
+            }
+        }, 3000);
+    }
+
             transcribing: 'Converting speech to text...',
             processing: 'Processing your message...',
             responding: 'Generating response...'

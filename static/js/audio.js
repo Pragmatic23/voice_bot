@@ -9,11 +9,13 @@ class AudioHandler {
         this.channelCount = 1;
         this.isContinuousMode = false;
         this.audioContext = null;
-        this.silenceThreshold = -50; // dB threshold for silence
+        this.silenceThreshold = -35; // Adjusted threshold for better sensitivity
         this.silenceDuration = 1.5; // seconds of silence to trigger stop
         this.lastVoiceTime = 0;
         this.voiceDetectionInterval = null;
         this.onSpeechEnd = null;
+        this.volumeAnalyser = null;
+        this.volumeDataArray = null;
     }
 
     async startRecording(continuous = false) {
@@ -28,6 +30,7 @@ class AudioHandler {
             
             // Initialize AudioContext for voice detection if in continuous mode
             if (continuous) {
+                console.log('[AudioHandler] Initializing continuous mode with AudioContext');
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
             
@@ -83,6 +86,7 @@ class AudioHandler {
             console.log(`[AudioHandler] Recording initialized in ${(performance.now() - startTime).toFixed(2)}ms`);
             
             if (continuous) {
+                console.log('[AudioHandler] Setting up voice detection for continuous mode');
                 await this.setupVoiceDetection();
             }
             
@@ -91,6 +95,82 @@ class AudioHandler {
             await this.cleanup();
             console.error('[AudioHandler] Error starting recording:', error);
             throw this.formatError(error);
+        }
+    }
+
+    async setupVoiceDetection() {
+        try {
+            console.log('[AudioHandler] Initializing enhanced voice detection...');
+            const audioSource = this.audioContext.createMediaStreamSource(this.stream);
+            this.volumeAnalyser = this.audioContext.createAnalyser();
+            
+            // Configure analyser for better voice detection
+            this.volumeAnalyser.fftSize = 2048;
+            this.volumeAnalyser.smoothingTimeConstant = 0.8;
+            this.volumeDataArray = new Float32Array(this.volumeAnalyser.frequencyBinCount);
+            
+            audioSource.connect(this.volumeAnalyser);
+            
+            console.log('[AudioHandler] Voice detection parameters:', {
+                fftSize: this.volumeAnalyser.fftSize,
+                silenceThreshold: this.silenceThreshold,
+                silenceDuration: this.silenceDuration
+            });
+
+            let consecutiveSilenceCount = 0;
+            const checkInterval = 100; // Check every 100ms
+            const silenceChecksNeeded = Math.ceil((this.silenceDuration * 1000) / checkInterval);
+            
+            // Clear any existing interval
+            if (this.voiceDetectionInterval) {
+                console.log('[AudioHandler] Clearing existing voice detection interval');
+                clearInterval(this.voiceDetectionInterval);
+                this.voiceDetectionInterval = null;
+            }
+
+            // Start monitoring voice activity
+            this.voiceDetectionInterval = setInterval(() => {
+                if (!this.isRecording) {
+                    console.log('[AudioHandler] Recording stopped, clearing voice detection interval');
+                    clearInterval(this.voiceDetectionInterval);
+                    this.voiceDetectionInterval = null;
+                    return;
+                }
+
+                this.volumeAnalyser.getFloatFrequencyData(this.volumeDataArray);
+                
+                // Calculate RMS value for more accurate volume detection
+                const rmsValue = Math.sqrt(
+                    this.volumeDataArray.reduce((sum, value) => sum + (value * value), 0) 
+                    / this.volumeDataArray.length
+                );
+                
+                const volume = 20 * Math.log10(rmsValue);
+                console.log(`[AudioHandler] Current volume level: ${volume.toFixed(2)} dB`);
+
+                if (volume > this.silenceThreshold) {
+                    console.log('[AudioHandler] Voice activity detected');
+                    this.lastVoiceTime = Date.now();
+                    consecutiveSilenceCount = 0;
+                } else {
+                    consecutiveSilenceCount++;
+                    console.log(`[AudioHandler] Silence detected (${consecutiveSilenceCount}/${silenceChecksNeeded})`);
+                    
+                    if (consecutiveSilenceCount >= silenceChecksNeeded) {
+                        console.log('[AudioHandler] Silence duration threshold reached, triggering speech end');
+                        if (this.isRecording && typeof this.onSpeechEnd === 'function') {
+                            clearInterval(this.voiceDetectionInterval);
+                            this.voiceDetectionInterval = null;
+                            this.onSpeechEnd();
+                        }
+                    }
+                }
+            }, checkInterval);
+
+            console.log('[AudioHandler] Voice detection setup completed');
+        } catch (error) {
+            console.error('[AudioHandler] Error setting up voice detection:', error);
+            throw new Error('Failed to initialize voice detection');
         }
     }
 
@@ -131,6 +211,12 @@ class AudioHandler {
         console.log('[AudioHandler] Starting cleanup process...');
         
         try {
+            if (this.voiceDetectionInterval) {
+                console.log('[AudioHandler] Clearing voice detection interval');
+                clearInterval(this.voiceDetectionInterval);
+                this.voiceDetectionInterval = null;
+            }
+
             if (this.stream) {
                 const tracks = this.stream.getTracks();
                 console.log(`[AudioHandler] Stopping ${tracks.length} media tracks...`);
@@ -141,12 +227,14 @@ class AudioHandler {
                 });
             }
             
-            if (this.voiceDetectionInterval) {
-                clearInterval(this.voiceDetectionInterval);
-                this.voiceDetectionInterval = null;
+            if (this.volumeAnalyser) {
+                console.log('[AudioHandler] Disconnecting volume analyser');
+                this.volumeAnalyser.disconnect();
+                this.volumeAnalyser = null;
             }
             
-            if (this.audioContext) {
+            if (this.audioContext && this.audioContext.state !== 'closed') {
+                console.log('[AudioHandler] Closing AudioContext');
                 await this.audioContext.close();
                 this.audioContext = null;
             }
@@ -163,6 +251,34 @@ class AudioHandler {
         }
     }
 
+    setSpeechEndCallback(callback) {
+        this.onSpeechEnd = callback;
+        console.log('[AudioHandler] Speech end callback registered');
+    }
+
+    formatError(error) {
+        const errorMessages = {
+            'NotAllowedError': 'Microphone access denied. Please grant microphone permissions.',
+            'NotFoundError': 'No microphone found. Please check your audio input devices.',
+            'NotReadableError': 'Could not access microphone. Please check if another application is using it.',
+            'AbortError': 'Recording was aborted. Please try again.',
+            'SecurityError': 'Security error occurred. Please ensure you\'re using HTTPS and have granted necessary permissions.',
+            'TypeError': 'Audio format not supported. Please try updating your browser.',
+            'InvalidStateError': 'Invalid recorder state. Please refresh the page and try again.',
+            'UnknownError': 'An unexpected error occurred. Please try refreshing the page.'
+        };
+
+        const errorName = error.name || 'UnknownError';
+        const customMessage = errorMessages[errorName];
+        
+        if (customMessage) {
+            console.log(`[AudioHandler] Mapped error "${errorName}" to custom message`);
+            return customMessage;
+        }
+
+        console.log('[AudioHandler] Using generic error message');
+        return 'An error occurred while processing audio: ' + error.message;
+    }
     async playAudio(audioDataUrl) {
         console.log('[AudioHandler] Attempting to play audio...');
         
@@ -191,68 +307,6 @@ class AudioHandler {
             console.error('[AudioHandler] Error playing audio:', error);
             throw this.formatError(error);
         }
-    }
-
-    async setupVoiceDetection() {
-        try {
-            const audioSource = this.audioContext.createMediaStreamSource(this.stream);
-            const analyser = this.audioContext.createAnalyser();
-            analyser.fftSize = 2048;
-            audioSource.connect(analyser);
-
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Float32Array(bufferLength);
-
-            // Start monitoring voice activity
-            this.voiceDetectionInterval = setInterval(() => {
-                analyser.getFloatFrequencyData(dataArray);
-                
-                // Calculate average volume level
-                const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength;
-                
-                if (average > this.silenceThreshold) {
-                    this.lastVoiceTime = Date.now();
-                } else if (this.lastVoiceTime && Date.now() - this.lastVoiceTime > this.silenceDuration * 1000) {
-                    // Stop recording if silence duration exceeded
-                    if (this.isRecording && typeof this.onSpeechEnd === 'function') {
-                        clearInterval(this.voiceDetectionInterval);
-                        this.onSpeechEnd();
-                    }
-                }
-            }, 100);
-
-        } catch (error) {
-            console.error('[AudioHandler] Error setting up voice detection:', error);
-            throw new Error('Failed to initialize voice detection');
-        }
-    }
-
-    setSpeechEndCallback(callback) {
-        this.onSpeechEnd = callback;
-    }
-
-    formatError(error) {
-        const errorMessages = {
-            'NotAllowedError': 'Microphone access denied. Please grant microphone permissions.',
-            'NotFoundError': 'No microphone found. Please check your audio input devices.',
-            'NotReadableError': 'Could not access microphone. Please check if another application is using it.',
-            'AbortError': 'Recording was aborted. Please try again.',
-            'SecurityError': 'Security error occurred. Please ensure you\'re using HTTPS and have granted necessary permissions.',
-            'TypeError': 'Audio format not supported. Please try updating your browser.',
-            'InvalidStateError': 'Invalid recorder state. Please refresh the page and try again.',
-            'UnknownError': 'An unexpected error occurred. Please try refreshing the page.'
-        };
-
-        const errorName = error.name || 'UnknownError';
-        const customMessage = errorMessages[errorName];
-        
-        if (customMessage) {
-            console.log(`[AudioHandler] Mapped error "${errorName}" to custom message`);
-            return customMessage;
-        }
-
-        console.log('[AudioHandler] Using generic error message');
-        return 'An error occurred while processing audio: ' + error.message;
     }
 }
 
