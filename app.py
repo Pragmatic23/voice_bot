@@ -64,8 +64,10 @@ def process_audio_route():
             return jsonify({'error': f'Error generating response: {str(e)}'}), 500
         
         try:
-            # Convert response to speech
-            audio_response = text_to_speech(response)
+            # Get voice model from request
+            voice_model = request.form.get('voice_model', 'default')
+            # Convert response to speech with selected voice model
+            audio_response = text_to_speech(response, voice_model)
         except Exception as e:
             return jsonify({'error': f'Error converting text to speech: {str(e)}'}), 500
         

@@ -150,6 +150,8 @@ class ChatInterface {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.wav');
             formData.append('category', this.currentCategory);
+            const voiceModel = document.getElementById('voiceModel').value;
+            formData.append('voice_model', voiceModel);
 
             const response = await fetch('/process-audio', {
                 method: 'POST',

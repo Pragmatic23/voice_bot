@@ -137,23 +137,38 @@ async def generate_response(text, category, history, api_key):
         raise Exception(f"Error generating response: {str(e)}")
 
 @retry_on_exception(retries=3, delay=1)
-async def text_to_speech(text):
+async def text_to_speech(text, voice_model='default'):
     """Convert text to speech with improved error handling and retries."""
     try:
-        # Using gTTS for text-to-speech conversion
-        tts = gTTS(text=text, lang='en')
-        
-        # Save to bytes buffer
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        
-        # Convert to base64 for frontend playback
-        try:
-            audio_base64 = base64.b64encode(fp.read()).decode()
-            return f"data:audio/mp3;base64,{audio_base64}"
-        except Exception as e:
-            raise Exception(f"Audio encoding failed: {str(e)}")
+        if voice_model == 'openai':
+            try:
+                client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+                response = client.audio.speech.create(
+                    model="tts-1",
+                    voice="alloy",  # Default OpenAI voice
+                    input=text,
+                )
+                
+                audio_data = response.content
+                audio_base64 = base64.b64encode(audio_data).decode()
+                return f"data:audio/mp3;base64,{audio_base64}"
+            except Exception as e:
+                raise Exception(f"OpenAI TTS failed: {str(e)}")
+        else:
+            # Using gTTS for default text-to-speech conversion
+            tts = gTTS(text=text, lang='en')
+            
+            # Save to bytes buffer
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            
+            # Convert to base64 for frontend playback
+            try:
+                audio_base64 = base64.b64encode(fp.read()).decode()
+                return f"data:audio/mp3;base64,{audio_base64}"
+            except Exception as e:
+                raise Exception(f"Audio encoding failed: {str(e)}")
             
     except Exception as e:
         raise Exception(f"Text-to-speech conversion failed: {str(e)}")

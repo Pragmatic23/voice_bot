@@ -63,9 +63,15 @@
                 <div class="container">
                     <div class="row align-items-center justify-content-between">
                         <div class="col-auto text-center">
-                            <button id="recordButton" class="btn btn-primary record-button" title="Record">
-                                <i class="fas fa-microphone"></i>
-                            </button>
+                            <div class="d-flex align-items-center">
+                                <select id="voiceModel" class="form-select me-2" title="Select Voice Model">
+                                    <option value="default">Default Voice</option>
+                                    <option value="openai">OpenAI Voice</option>
+                                </select>
+                                <button id="recordButton" class="btn btn-primary record-button" title="Record">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="col-auto d-flex align-items-center">
                             <button id="historyButton" class="btn btn-outline-info btn-icon" title="Chat History">
