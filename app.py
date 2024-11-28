@@ -89,11 +89,18 @@ def process_audio_route():
             return jsonify({'error': f'Invalid audio format. Allowed types: {", ".join(allowed_types)}',
                           'request_id': request_id}), 400
         
-        # Log request details
+        # Enhanced request details logging
         category = request.form.get('category', 'general')
         voice_model = request.form.get('voice_model', 'default')
-        logger.info(f"[{request_id}] Request details - Category: {category}, Voice Model: {voice_model}")
-        logger.info(f"[{request_id}] Audio file size: {request.content_length} bytes")
+        request_details = {
+            'category': category,
+            'voice_model': voice_model,
+            'content_length': request.content_length,
+            'content_type': request.content_type,
+            'user_agent': request.headers.get('User-Agent'),
+            'request_id': request_id
+        }
+        logger.info("Received audio processing request", extra=request_details)
         
         # Process all async operations using asyncio
         async def process_request():

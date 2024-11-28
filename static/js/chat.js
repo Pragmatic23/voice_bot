@@ -3,6 +3,7 @@ import AudioHandler from './audio.js';
 class ChatInterface {
     constructor() {
         this.initializeElements();
+        this.initializeAudioHandler();
         this.setupEventListeners();
     }
 
@@ -28,13 +29,31 @@ class ChatInterface {
         Object.entries(this.elements).forEach(([key, element]) => {
             if (!element) {
                 console.error(`Required element not found: ${key}`);
+                throw new Error(`Critical UI element missing: ${key}`);
             }
         });
 
-        this.audioHandler = new AudioHandler();
         this.currentCategory = '';
         this.messageHistory = [];
         this.isProcessing = false;
+        this.processingStages = {
+            recording: false,
+            transcribing: false,
+            processing: false,
+            responding: false
+        };
+    }
+
+    async initializeAudioHandler() {
+        try {
+            console.log('[ChatInterface] Initializing AudioHandler...');
+            this.audioHandler = new AudioHandler();
+            console.log('[ChatInterface] AudioHandler initialized successfully');
+        } catch (error) {
+            console.error('[ChatInterface] Failed to initialize AudioHandler:', error);
+            this.showError('Failed to initialize audio system. Please refresh the page.');
+            throw error;
+        }
     }
 
     setupEventListeners() {
@@ -139,32 +158,47 @@ class ChatInterface {
     }
 
     async processAudio(audioBlob) {
-        console.log('[ChatInterface] Starting audio processing...');
+        const processingStart = Date.now();
+        console.log('[ChatInterface] Starting audio processing...', {
+            timestamp: new Date().toISOString(),
+            processingId: `proc_${processingStart}`
+        });
+
         if (!audioBlob) {
             console.error('[ChatInterface] No audio blob provided');
             this.showError('No audio data available to process');
             return;
         }
 
-        // Validate audio blob
-        console.log(`[ChatInterface] Audio blob details:`, {
+        // Enhanced audio validation logging
+        const blobDetails = {
             size: audioBlob.size,
             type: audioBlob.type,
-            lastModified: audioBlob.lastModified
-        });
+            lastModified: audioBlob.lastModified,
+            duration: audioBlob.duration || 'unknown'
+        };
+        console.log('[ChatInterface] Audio blob details:', blobDetails);
 
+        // Comprehensive size validation
         if (audioBlob.size === 0) {
             console.error('[ChatInterface] Empty audio blob received');
             this.showError('Empty audio recording detected');
             return;
         }
 
+        if (audioBlob.size > 10 * 1024 * 1024) {
+            console.error('[ChatInterface] Audio file too large:', audioBlob.size);
+            this.showError('Recording too large. Please keep messages under 1 minute.');
+            return;
+        }
+
         this.setLoadingState(true, 'processing');
-        const processingStart = Date.now();
+        this.this.updateProcessingStage('transcribing');
         console.log(`[ChatInterface] Processing started at: ${new Date(processingStart).toISOString()}`);
         
         try {
-            // Update status for audio preparation
+            // Show processing stages with visual feedback
+            this.updateStageProgress('transcribing');
             this.updateLoadingStatus('Preparing audio data...');
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.wav');
@@ -469,6 +503,40 @@ class ChatInterface {
     }
 
     updateLoadingStatus(message) {
+    updateStageProgress(stage) {
+        const stages = {
+            recording: 'Recording your message...',
+            transcribing: 'Converting speech to text...',
+            processing: 'Processing your message...',
+            responding: 'Generating response...'
+        };
+
+        this.updateLoadingStatus(stages[stage] || '');
+        
+        // Update visual progress indicator
+        const progressElement = document.getElementById('processingProgress');
+        if (!progressElement) {
+            const progress = document.createElement('div');
+            progress.id = 'processingProgress';
+            progress.className = 'progress mt-2';
+            progress.style.height = '2px';
+            progress.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>';
+            this.elements.recordButton.parentNode.appendChild(progress);
+        }
+
+        // Update progress bar based on stage
+        const progressBar = document.querySelector('#processingProgress .progress-bar');
+        if (progressBar) {
+            const stageProgress = {
+                recording: 25,
+                transcribing: 50,
+                processing: 75,
+                responding: 100
+            };
+            progressBar.style.width = `${stageProgress[stage]}%`;
+        }
+    }
+
         let statusElement = document.getElementById('processingStatus');
         if (!statusElement) {
             statusElement = document.createElement('div');
