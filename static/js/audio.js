@@ -267,4 +267,4 @@ class AudioHandler {
     }
 }
 
-export default new AudioHandler();
+export default AudioHandler;

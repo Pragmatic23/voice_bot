@@ -31,7 +31,7 @@ class ChatInterface {
             }
         });
 
-        this.audioHandler = AudioHandler;
+        this.audioHandler = new AudioHandler();
         this.currentCategory = '';
         this.messageHistory = [];
         this.isProcessing = false;
