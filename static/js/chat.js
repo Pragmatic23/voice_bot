@@ -145,30 +145,60 @@ class ChatInterface {
         }
 
         this.setLoadingState(true, 'processing');
+        const processingStart = Date.now();
         
         try {
+            // Update status for audio preparation
+            this.updateLoadingStatus('Preparing audio data...');
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.wav');
             formData.append('category', this.currentCategory);
             const voiceModel = document.getElementById('voiceModel').value;
             formData.append('voice_model', voiceModel);
 
+            // Update status for API request
+            this.updateLoadingStatus('Sending audio for processing...');
             const response = await fetch('/process-audio', {
                 method: 'POST',
                 body: formData
             });
 
-            const data = await response.json();
+            // Handle non-JSON responses
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                throw new Error('Invalid response from server: Failed to parse JSON');
+            }
             
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to process audio');
+                const errorMessage = data.error || 'Failed to process audio';
+                const requestId = data.request_id ? ` (Request ID: ${data.request_id})` : '';
+                throw new Error(`${errorMessage}${requestId}`);
             }
 
+            // Show processing time if available
+            if (data.processing_time) {
+                console.log(`Server processing time: ${data.processing_time.toFixed(2)}s`);
+            }
+
+            // Update status for each step
+            this.updateLoadingStatus('Updating chat window...');
             this.updateChatWindow(data.text, data.response);
+            
+            this.updateLoadingStatus('Playing audio response...');
             await this.audioHandler.playAudio(data.audio);
             
+            // Show success message with timing
+            const totalTime = ((Date.now() - processingStart) / 1000).toFixed(2);
+            this.updateLoadingStatus(`Processing completed in ${totalTime}s`);
+            setTimeout(() => this.updateLoadingStatus(''), 3000);
+            
         } catch (error) {
+            console.error('Audio processing error:', error);
             this.showError(error.message);
+            // Show detailed error status
+            this.updateLoadingStatus('Processing failed - please try again');
         } finally {
             this.setLoadingState(false, 'processing');
         }

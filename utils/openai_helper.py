@@ -53,46 +53,69 @@ def validate_audio_format(audio_file):
 async def process_audio(audio_file, api_key):
     """Process audio file using Whisper API with improved error handling and retries."""
     start_time = time.time()
-    logger.info("Starting audio processing...")
+    request_id = f"audio_{int(start_time)}"
+    logger.info(f"[{request_id}] Starting audio processing...")
     
     try:
         # Validate audio format
-        logger.info("Validating audio format...")
-        validate_audio_format(audio_file)
+        logger.info(f"[{request_id}] Validating audio format...")
+        try:
+            validate_audio_format(audio_file)
+            logger.info(f"[{request_id}] Audio format validation successful: {audio_file.content_type}")
+        except ValueError as e:
+            logger.error(f"[{request_id}] Audio format validation failed: {str(e)}")
+            raise
         
-        logger.info("Initializing OpenAI client...")
+        logger.info(f"[{request_id}] Initializing OpenAI client...")
         client = OpenAI(api_key=api_key)
         
         # Save the audio file temporarily
-        logger.info("Creating temporary audio file...")
+        logger.info(f"[{request_id}] Creating temporary audio file...")
+        temp_start = time.time()
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio:
-            logger.info("Saving audio data...")
-            audio_file.save(temp_audio.name)
-            
-            # Transcribe using Whisper API
             try:
-                logger.info("Sending audio to Whisper API for transcription...")
+                audio_file.save(temp_audio.name)
+                file_size = os.path.getsize(temp_audio.name)
+                logger.info(f"[{request_id}] Audio file saved: {file_size} bytes in {time.time() - temp_start:.2f}s")
+                
+                # Transcribe using Whisper API
+                logger.info(f"[{request_id}] Initiating Whisper API request...")
                 transcription_start = time.time()
-                with open(temp_audio.name, 'rb') as audio:
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio,
-                        language="en"
-                    )
-                logger.info(f"Transcription completed in {time.time() - transcription_start:.2f} seconds")
-                logger.info(f"Transcribed text: {transcript.text[:100]}...")
-                log_timing("process_audio", start_time)
-                return transcript.text
+                
+                try:
+                    with open(temp_audio.name, 'rb') as audio:
+                        logger.info(f"[{request_id}] Sending audio to Whisper API...")
+                        transcript = client.audio.transcriptions.create(
+                            model="whisper-1",
+                            file=audio,
+                            language="en"
+                        )
+                        
+                    transcription_time = time.time() - transcription_start
+                    logger.info(f"[{request_id}] Whisper API response received in {transcription_time:.2f}s")
+                    logger.info(f"[{request_id}] Transcribed text ({len(transcript.text)} chars): {transcript.text[:100]}...")
+                    
+                    total_time = time.time() - start_time
+                    logger.info(f"[{request_id}] Total processing time: {total_time:.2f}s")
+                    return transcript.text
+                    
+                except Exception as e:
+                    logger.error(f"[{request_id}] Whisper API error: {str(e)}")
+                    raise Exception(f"Transcription failed: {str(e)}")
+                    
             except Exception as e:
-                raise Exception(f"Transcription failed: {str(e)}")
+                logger.error(f"[{request_id}] Error saving/processing audio: {str(e)}")
+                raise
             finally:
                 # Cleanup temporary file
                 try:
                     os.unlink(temp_audio.name)
+                    logger.info(f"[{request_id}] Temporary file cleaned up successfully")
                 except Exception as e:
-                    print(f"Warning: Failed to cleanup temporary file: {str(e)}")
+                    logger.warning(f"[{request_id}] Failed to cleanup temporary file: {str(e)}")
                     
     except Exception as e:
+        logger.error(f"[{request_id}] Audio processing failed: {str(e)}")
         raise Exception(f"Audio processing failed: {str(e)}")
 
 @retry_on_exception(retries=3, delay=1)
