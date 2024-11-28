@@ -440,15 +440,16 @@ class ChatInterface {
         }, 5000);
     }
 
-    updateStageProgress(stage) {
-        const stages = {
-            recording: 'Recording your message...',
-            transcribing: 'Converting speech to text...',
-            processing: 'Processing your message...',
-            responding: 'Generating response...'
-        };
+    // Define stages object at class level
+    stages = {
+        recording: 'Recording your message...',
+        transcribing: 'Converting speech to text...',
+        processing: 'Processing your message...',
+        responding: 'Generating response...'
+    };
 
-        this.updateLoadingStatus(stages[stage] || '');
+    updateStageProgress(stage) {
+        this.updateLoadingStatus(this.stages[stage] || '');
         
         // Update visual progress indicator
         let progressElement = document.getElementById('processingProgress');
