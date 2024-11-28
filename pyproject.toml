@@ -11,8 +11,4 @@ dependencies = [
     "openai>=1.55.1",
     "requests>=2.32.3",
     "gtts>=2.5.4",
-    "simple-websocket>=1.1.0",
-    "flask-socketio>=5.4.1",
-    "gevent>=24.11.1",
-    "gevent-websocket>=0.10.1",
 ]
