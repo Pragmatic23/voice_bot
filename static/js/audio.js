@@ -6,72 +6,161 @@ class AudioHandler {
         this.stream = null;
         this.maxRetries = 3;
         this.retryDelay = 1000; // 1 second
+        this.retryCount = 0;
+        this.minAudioSize = 1024; // 1KB minimum audio size
+        this.maxAudioSize = 10 * 1024 * 1024; // 10MB maximum audio size
+        this.sampleRate = 44100;
+        this.channelCount = 1;
     }
 
     async startRecording() {
-        console.log('Initializing audio recording...');
+        const startTime = performance.now();
+        console.log('[AudioHandler] Initializing audio recording...');
+        
         try {
             // Stop any existing streams
-            console.log('Cleaning up previous recording session...');
+            console.log('[AudioHandler] Cleaning up previous recording session...');
             await this.cleanup();
             
-            // Request microphone access
-            console.log('Requesting microphone access...');
-            this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            console.log('Microphone access granted');
-            
-            // Create and configure MediaRecorder
-            console.log('Configuring MediaRecorder...');
-            this.mediaRecorder = new MediaRecorder(this.stream, {
-                mimeType: 'audio/webm;codecs=opus'
+            // Request microphone access with specific constraints
+            console.log('[AudioHandler] Requesting microphone access with quality settings...');
+            this.stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    sampleRate: this.sampleRate,
+                    channelCount: this.channelCount,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
             });
+            console.log('[AudioHandler] Microphone access granted with specified constraints');
+            
+            // Create and configure MediaRecorder with enhanced settings
+            console.log('[AudioHandler] Configuring MediaRecorder with optimal settings...');
+            const options = {
+                mimeType: 'audio/webm;codecs=opus',
+                audioBitsPerSecond: 128000 // 128kbps for good quality
+            };
 
+            // Verify MediaRecorder support for specified options
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                throw new Error(`Browser does not support ${options.mimeType} recording`);
+            }
+
+            this.mediaRecorder = new MediaRecorder(this.stream, options);
             this.audioChunks = [];
             
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
+                    if (event.data.size > this.maxAudioSize) {
+                        console.warn('[AudioHandler] Audio chunk exceeds maximum size limit');
+                        this.cleanup();
+                        throw new Error('Recording too large. Please keep your message shorter.');
+                    }
                     this.audioChunks.push(event.data);
+                    console.log(`[AudioHandler] Audio chunk received: ${event.data.size} bytes`);
                 }
             };
 
             this.mediaRecorder.onerror = (error) => {
-                console.error('MediaRecorder error:', error);
+                console.error('[AudioHandler] MediaRecorder error:', error);
                 this.cleanup();
                 throw new Error('Recording failed: ' + error.message);
             };
 
-            this.mediaRecorder.start();
-            this.isRecording = true;
+            // Add state change monitoring
+            this.mediaRecorder.onstart = () => {
+                console.log('[AudioHandler] Recording started successfully');
+                this.isRecording = true;
+            };
+
+            this.mediaRecorder.onstop = () => {
+                console.log('[AudioHandler] Recording stopped');
+                this.isRecording = false;
+            };
+
+            this.mediaRecorder.start(1000); // Collect data in 1-second chunks
+            console.log(`[AudioHandler] Recording initialized in ${(performance.now() - startTime).toFixed(2)}ms`);
             
             return true;
         } catch (error) {
             await this.cleanup();
-            console.error('Error starting recording:', error);
+            console.error('[AudioHandler] Error starting recording:', error);
+            
+            // Implement retry mechanism
+            if (this.retryCount < this.maxRetries) {
+                this.retryCount++;
+                console.log(`[AudioHandler] Retrying recording (Attempt ${this.retryCount}/${this.maxRetries})...`);
+                await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+                return this.startRecording();
+            }
+            
+            this.retryCount = 0;
             throw new Error(this.getReadableErrorMessage(error));
         }
     }
 
     async stopRecording() {
         return new Promise(async (resolve, reject) => {
+            console.log('[AudioHandler] Attempting to stop recording...');
             try {
                 if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') {
                     throw new Error('No active recording found');
                 }
 
-                // Set up event handlers
+                // Set up event handlers with timeout
+                const stopTimeout = setTimeout(() => {
+                    reject(new Error('Recording stop timeout - took too long to process'));
+                    this.cleanup();
+                }, 5000); // 5 second timeout
+
                 this.mediaRecorder.onstop = async () => {
                     try {
-                        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm;codecs=opus' });
+                        clearTimeout(stopTimeout);
+                        
+                        // Validate audio data
+                        const totalSize = this.audioChunks.reduce((size, chunk) => size + chunk.size, 0);
+                        console.log(`[AudioHandler] Total audio size: ${totalSize} bytes`);
+                        
+                        if (totalSize < this.minAudioSize) {
+                            throw new Error('Recording too short or empty. Please try again.');
+                        }
+                        
+                        if (totalSize > this.maxAudioSize) {
+                            throw new Error('Recording too large. Please keep your message shorter.');
+                        }
+
+                        // Create audio blob with proper codec
+                        const audioBlob = new Blob(this.audioChunks, { 
+                            type: 'audio/webm;codecs=opus'
+                        });
+
+                        // Verify blob was created successfully
+                        if (!audioBlob || audioBlob.size === 0) {
+                            throw new Error('Failed to create audio blob');
+                        }
+
+                        console.log(`[AudioHandler] Successfully created audio blob: ${audioBlob.size} bytes`);
                         await this.cleanup();
                         resolve(audioBlob);
                     } catch (error) {
+                        console.error('[AudioHandler] Error in stop handler:', error);
                         reject(error);
                     }
                 };
 
+                // Add error handler specifically for stop operation
+                this.mediaRecorder.onerror = (error) => {
+                    clearTimeout(stopTimeout);
+                    console.error('[AudioHandler] Error while stopping recording:', error);
+                    reject(new Error('Failed to stop recording: ' + error.message));
+                };
+
+                console.log('[AudioHandler] Stopping MediaRecorder...');
                 this.mediaRecorder.stop();
                 this.isRecording = false;
             } catch (error) {
+                console.error('[AudioHandler] Error in stopRecording:', error);
                 await this.cleanup();
                 reject(new Error('Failed to stop recording: ' + error.message));
             }
@@ -79,47 +168,102 @@ class AudioHandler {
     }
 
     async cleanup() {
-        // Stop all media tracks
-        if (this.stream) {
-            this.stream.getTracks().forEach(track => track.stop());
-            this.stream = null;
-        }
-
-        // Reset MediaRecorder
-        if (this.mediaRecorder) {
-            if (this.mediaRecorder.state !== 'inactive') {
-                try {
-                    this.mediaRecorder.stop();
-                } catch (error) {
-                    console.warn('Error stopping MediaRecorder:', error);
-                }
+        console.log('[AudioHandler] Starting cleanup process...');
+        try {
+            // Stop all media tracks with verification
+            if (this.stream) {
+                const tracks = this.stream.getTracks();
+                console.log(`[AudioHandler] Stopping ${tracks.length} media tracks...`);
+                
+                await Promise.all(tracks.map(async (track) => {
+                    try {
+                        track.stop();
+                        console.log(`[AudioHandler] Successfully stopped track: ${track.kind}`);
+                    } catch (error) {
+                        console.warn(`[AudioHandler] Error stopping track ${track.kind}:`, error);
+                    }
+                }));
+                
+                this.stream = null;
             }
-            this.mediaRecorder = null;
-        }
 
-        this.audioChunks = [];
-        this.isRecording = false;
+            // Reset MediaRecorder with safety checks
+            if (this.mediaRecorder) {
+                if (this.mediaRecorder.state !== 'inactive') {
+                    try {
+                        console.log('[AudioHandler] Stopping active MediaRecorder...');
+                        this.mediaRecorder.stop();
+                    } catch (error) {
+                        console.warn('[AudioHandler] Error stopping MediaRecorder:', error);
+                    }
+                }
+                this.mediaRecorder = null;
+            }
+
+            this.audioChunks = [];
+            this.isRecording = false;
+            this.retryCount = 0;
+            console.log('[AudioHandler] Cleanup completed successfully');
+        } catch (error) {
+            console.error('[AudioHandler] Error during cleanup:', error);
+            throw new Error('Failed to cleanup recording resources: ' + error.message);
+        }
     }
 
     async playAudio(audioData) {
+        console.log('[AudioHandler] Attempting to play audio...');
         try {
+            // Validate audio data
+            if (!audioData || typeof audioData !== 'string') {
+                throw new Error('Invalid audio data received');
+            }
+
             const audio = new Audio(audioData);
+            
+            // Add error handling for audio loading
+            audio.onerror = (error) => {
+                console.error('[AudioHandler] Error loading audio:', error);
+                throw new Error('Failed to load audio response');
+            };
+
+            // Add event listeners for better monitoring
+            audio.onloadstart = () => console.log('[AudioHandler] Audio loading started');
+            audio.oncanplay = () => console.log('[AudioHandler] Audio ready to play');
+            audio.onended = () => console.log('[AudioHandler] Audio playback completed');
+
             await audio.play();
+            console.log('[AudioHandler] Audio playback started successfully');
         } catch (error) {
-            console.error('Error playing audio:', error);
-            throw new Error('Failed to play audio response');
+            console.error('[AudioHandler] Error playing audio:', error);
+            throw new Error('Failed to play audio response: ' + this.getReadableErrorMessage(error));
         }
     }
 
     getReadableErrorMessage(error) {
-        if (error.name === 'NotAllowedError') {
-            return 'Microphone access denied. Please allow microphone access to use this feature.';
-        } else if (error.name === 'NotFoundError') {
-            return 'No microphone found. Please ensure your microphone is properly connected.';
-        } else if (error.name === 'NotReadableError') {
-            return 'Cannot access microphone. Please ensure no other application is using it.';
+        console.log('[AudioHandler] Formatting error message for:', error);
+        
+        // Enhanced error messages with more specific cases
+        const errorMessages = {
+            'NotAllowedError': 'Microphone access denied. Please allow microphone access in your browser settings to use this feature.',
+            'NotFoundError': 'No microphone found. Please ensure your microphone is properly connected and not disabled.',
+            'NotReadableError': 'Cannot access microphone. Please ensure no other application is using it and try restarting your browser.',
+            'AbortError': 'Recording was aborted. Please try again.',
+            'SecurityError': 'Security error occurred. Please ensure you\'re using HTTPS and have granted necessary permissions.',
+            'TypeError': 'Audio format not supported. Please try updating your browser.',
+            'InvalidStateError': 'Invalid recorder state. Please refresh the page and try again.',
+            'UnknownError': 'An unexpected error occurred. Please try refreshing the page.'
+        };
+
+        const errorName = error.name || 'UnknownError';
+        const customMessage = errorMessages[errorName];
+        
+        if (customMessage) {
+            console.log(`[AudioHandler] Mapped error "${errorName}" to custom message`);
+            return customMessage;
         }
-        return 'An error occurred while accessing the microphone: ' + error.message;
+
+        console.log('[AudioHandler] Using generic error message');
+        return 'An error occurred while processing audio: ' + error.message;
     }
 }
 
